@@ -17,10 +17,10 @@ def map_ner_tags(ner_tag):
 
 def map_sa_tags(sa_tag):
 
-    ner_map = {
+    sa_map = {
         0: "Negative", 
         1: "Neutral",
         2: "Positive", 
     }
 
-    return [sa_tag[tag] for tag in sa_tag]
+    return [sa_map[tag] for tag in sa_tag]
