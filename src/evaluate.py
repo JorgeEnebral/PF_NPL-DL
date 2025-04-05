@@ -25,11 +25,11 @@ def main() -> None:
     This function is the main program.
     """
     test_data: DataLoader
-    _, _, test_data, mean, std = load_data(DATA_PATH, batch_size=32, num_workers=4)
+    _, _, test_data = load_data(DATA_PATH, batch_size=128, num_workers=4)
 
     model: RecursiveScriptModule = load_model("best_model.pt").to(device)
 
-    test_mae = t_step(model, test_data, mean, std, device)
+    test_ner, test_sa = t_step(model, test_data, device)
 
 
 if __name__ == "__main__":

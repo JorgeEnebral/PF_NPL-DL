@@ -11,7 +11,7 @@ from typing import Final
 from src.data import load_data
 from src.models import MyModel
 from src.train_functions import train_step, val_step, t_step
-from src.utils import set_seed, save_model
+from src.utils import set_seed, save_model, parameters_to_double
 
 # static variables
 DATA_PATH: Final[str] = "data"
@@ -27,16 +27,21 @@ def main() -> None:
     train_data, val_data, test_data = load_data(DATA_PATH, batch_size=128, shuffle=True, drop_last=False, num_workers=4)
     
     model = MyModel().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)
-    loss_fn = torch.nn.L1Loss()  # MAE
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.2)
+    parameters_to_double(model)
+
+    optimizer_ner = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)  # Parámetros poner los usados por ner
+    optimizer_sa = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)  # Parámetros poner los usados por sa
+
+    loss_ner = torch.nn.CrossEntropyLoss()
+    loss_sa = torch.nn.CrossEntropyLoss()
+
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.2)  NECESARIO?
     writer = SummaryWriter()
     
     num_epochs = 100
-    
     for epoch in tqdm(range(num_epochs)):
-        train_step(model, train_data, loss_fn, optimizer, writer, epoch, device)
-        val_step(model, val_data, loss_fn, scheduler, writer, epoch, device)
+        train_step(model, train_data, loss_ner, loss_sa, optimizer_ner, optimizer_sa, writer, epoch, device)
+        val_step(model, val_data, loss_ner, loss_sa, writer, epoch, device)
     
     # Final evaluation
     t_step(model, test_data, device)

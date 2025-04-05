@@ -1,7 +1,6 @@
 from typing import Tuple, List
 
 # deep learning libraries
-import torch
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
@@ -9,7 +8,6 @@ from transformers import pipeline
 
 # other libraries
 import os
-import random
 
 # own modules
 from src.utils import set_seed
@@ -54,9 +52,9 @@ def load_data(
         os.makedirs(save_path)
         download_data(save_path)
         
-    train_df = pd.read_csv(f"{save_path}/train.csv", sep="\t")
-    val_df = pd.read_csv(f"{save_path}/val.csv", sep="\t")
-    test_df = pd.read_csv(f"{save_path}/test.csv", sep="\t")
+    train_df = pd.read_csv(f"{save_path}/train.csv", sep=";")
+    val_df = pd.read_csv(f"{save_path}/validation.csv", sep=";")
+    test_df = pd.read_csv(f"{save_path}/test.csv", sep=";")
 
     # Create datasets
     train_dataset = AlertsDataset(train_df)
@@ -70,27 +68,27 @@ def load_data(
     
     return train_loader, val_loader, test_loader
 
-
 def download_data(path) -> None:
     """"""
     def process_dataset(sentiment_analyzer, dataset, part):
         """"""        
-        data_tokens = [sent["tokens"] for sent in dataset[part]]
+        data_tokens = [[token.replace('"', '').replace("'", "") for token in sent["tokens"] 
+                        if token.replace('"', '').replace("'", "")] for sent in dataset[part]]
         data_ner_tags= [sent["ner_tags"] for sent in dataset[part]]
-        data_sa = [int(sentiment_analyzer(" ".join(sent))["label"][-1]) for sent in data_tokens]
+        data_sa = [int(sentiment_analyzer(" ".join(sent))[0]["label"][-1]) for sent in data_tokens]
         
         df = pd.DataFrame({
             "tokens": data_tokens,
             "ner": data_ner_tags,
             "sa": data_sa
         })
-        df.to_csv(os.path.join(path, f"{part}.csv"), index=False, sep="\t")
+        df.to_csv(os.path.join(path, f"{part}.csv"), index=False, sep=";")
         
         return None
         
         
     sentiment_analyzer = pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment")
-    dataset = load_dataset("conll2003")
+    dataset = load_dataset("conll2003", trust_remote_code=True)
     
     process_dataset(sentiment_analyzer, dataset, "train")
     process_dataset(sentiment_analyzer, dataset, "validation")
@@ -98,7 +96,7 @@ def download_data(path) -> None:
     
     return None
     
-
+       
 def map_ner_tags(ner_tag):
     # Mapa de etiquetas NER de CoNLL-2003 a las etiquetas del esquema propuesto
     ner_map = {
@@ -112,7 +110,6 @@ def map_ner_tags(ner_tag):
         7: "B-MISC",  # Inicio de Entidad Miscelánea
         8: "I-MISC"   # Continuación de Entidad Miscelánea
     }
-
     return [ner_map[tag] for tag in ner_tag]
 
 def map_sa_tags(sa_tag):
@@ -122,7 +119,12 @@ def map_sa_tags(sa_tag):
         1: "Neutral",
         2: "Positive", 
     }
-
     return [sa_map[tag] for tag in sa_tag]   
     
-      
+    
+    
+# if __name__ == "__main__":
+    
+#     # python -m src.data para cargarlos
+#     path = "data"
+#     dat_t, dat_v, dat_te = load_data(path)

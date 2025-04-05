@@ -5,96 +5,90 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 # other libraries
-from typing import Optional
+from typing import Optional, Tuple
 
 
 @torch.enable_grad()
 def train_step(
     model: torch.nn.Module,
     train_data: DataLoader,
-    loss: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
+    loss_ner: torch.nn.Module,
+    loss_sa: torch.nn.Module,
+    optimizer_ner: torch.optim.Optimizer,
+    optimizer_sa: torch.optim.Optimizer,
     writer: SummaryWriter,
     epoch: int,
     device: torch.device,
 ) -> None:
     """
     This function train the model.
-
-    Args:
-        model: model to train.
-        train_data: dataloader of train data.
-        mean: mean of the target.
-        std: std of the target.
-        loss: loss function.
-        optimizer: optimizer.
-        writer: writer for tensorboard.
-        epoch: epoch of the training.
-        device: device for running operations.
     """
     model.train()
-    losses = []
+    losses_ner = []
+    losses_sa = []
     
-    for inputs, targets in train_data:
-        inputs, targets = inputs.to(device).float(), targets.to(device).float()
+    for inputs, ner_targets, sa_targets in train_data:
+        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
         outputs = model(inputs)
         
-        # Calcular pérdida MAE
-        loss_ = loss(outputs, targets)
+        # Calcular pérdida
+        loss_ner_ = loss_ner(ner_targets, outputs[0])
+        loss_sa_ = loss_sa(sa_targets, outputs[1])
         
         # Backward y optimización
-        optimizer.zero_grad()
-        loss_.backward()
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-        optimizer.step()
+        optimizer_ner.zero_grad()
+        optimizer_sa.zero_grad()
+
+        loss_ner_.backward()
+        loss_sa_.backward()
+
+        optimizer_ner.step()
+        optimizer_sa.step()
         
-        losses.append(loss_.item())
+        losses_ner.append(loss_ner_.item())
+        losses_sa.append(loss_sa_.item())
     
-    writer.add_scalar("train/loss", np.mean(losses), epoch)
-    print(f"Epoch {epoch}: Train Loss = {np.mean(losses):.4f}")
+    writer.add_scalar("train/loss_ner", np.mean(losses_ner), epoch)
+    writer.add_scalar("train/loss_sa", np.mean(losses_sa), epoch)
+    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses_ner):.4f} | Train Loss SA = {np.mean(losses_sa):.4f}")
 
 
 @torch.no_grad()
 def val_step(
     model: torch.nn.Module,
     val_data: DataLoader,
-    loss: torch.nn.Module,
-    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler],
+    loss_ner: torch.nn.Module,
+    loss_sa: torch.nn.Module,
+    #scheduler: Optional[torch.optim.lr_scheduler.LRScheduler],
     writer: SummaryWriter,
     epoch: int,
     device: torch.device,
 ) -> None:
     """
     This function train the model.
-
-    Args:
-        model: model to train.
-        val_data: dataloader of validation data.
-        mean: mean of the target.
-        std: std of the target.
-        loss: loss function.
-        scheduler: scheduler.
-        writer: writer for tensorboard.
-        epoch: epoch of the training.
-        device: device for running operations.
     """
     model.eval()
-    losses = []
+    losses_ner = []
+    losses_sa = []
     
-    for inputs, targets in val_data:
-        inputs, targets = inputs.to(device).float(), targets.to(device).float()
+    for inputs, ner_targets, sa_targets in val_data:
+        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
         outputs = model(inputs)
         
-        # Calcular pérdida MAE
-        loss_ = loss(outputs, targets)
-        losses.append(loss_.item())
+        # Calcular pérdida
+        loss_ner_ = loss_ner(ner_targets, outputs[0])
+        loss_sa_ = loss_sa(sa_targets, outputs[1])
+
+        losses_ner.append(loss_ner_.item())
+        losses_sa.append(loss_sa_.item())
     
-    writer.add_scalar("val/loss", np.mean(losses), epoch)
-    print(f"Epoch {epoch}: Val Loss = {np.mean(losses):.4f}")
+    writer.add_scalar("val/loss_ner", np.mean(losses_ner), epoch)
+    writer.add_scalar("val/loss_sa", np.mean(losses_sa), epoch)
+    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses_ner):.4f} | Train Loss SA = {np.mean(losses_sa):.4f}")
 
 
 @torch.no_grad()
@@ -102,35 +96,31 @@ def t_step(
     model: torch.nn.Module,
     test_data: DataLoader,
     device: torch.device,
-) -> float:
+) -> Tuple[float, float]:
     """
     This function tests the model.
-
-    Args:
-        model: model to make predcitions.
-        test_data: dataset for testing.
-        mean: mean of the target.
-        std: std of the target.
-        device: device for running operations.
-
-    Returns:
-        mae of the test data.
     """
     model.eval()
-    losses = []
-    loss_fn = torch.nn.L1Loss()  # MAE
+    losses_ner = []
+    losses_sa = []
+    loss_ner = torch.nn.CrossEntropyLoss()
+    loss_sa = torch.nn.CrossEntropyLoss()
     
-    for inputs, targets in test_data:
-        inputs, targets = inputs.to(device).float(), targets.to(device).float()
+    for inputs, ner_targets, sa_targets in test_data:
+        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
         outputs = model(inputs)
         
-        # Calcular pérdida MAE
-        loss_ = loss_fn(outputs, targets)
-        losses.append(loss_.item())
+        # Calcular pérdida
+        loss_ner_ = loss_ner(ner_targets, outputs[0])
+        loss_sa_ = loss_sa(sa_targets, outputs[1])
+
+        losses_ner.append(loss_ner_.item())
+        losses_sa.append(loss_sa_.item())
     
-    test_mae = np.mean(losses)
-    test_mae = test_mae  # Desnormalizar la pérdida
-    print(f"Test MAE: {test_mae:.4f}")
-    return test_mae
+    test_ner = np.mean(losses_ner)
+    test_sa = np.mean(losses_sa)
+
+    print(f"Test NER: {test_ner:.4f} | Test SA: {test_sa:.4f}")
+    return test_ner, test_sa
