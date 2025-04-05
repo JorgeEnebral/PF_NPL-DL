@@ -9,7 +9,7 @@ from typing import Final
 
 # own modules
 from src.data import load_data
-from src.models import MyModel
+from src.models import NerSaModel
 from src.train_functions import train_step, val_step, t_step
 from src.utils import set_seed, save_model, parameters_to_double
 
@@ -26,7 +26,7 @@ def main() -> None:
     """
     train_data, val_data, test_data = load_data(DATA_PATH, batch_size=128, shuffle=True, drop_last=False, num_workers=4)
     
-    model = MyModel().to(device)
+    model = NerSaModel().to(device)
     parameters_to_double(model)
 
     optimizer_ner = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)  # Parámetros poner los usados por ner

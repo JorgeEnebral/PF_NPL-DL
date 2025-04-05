@@ -6,7 +6,7 @@ import torch.nn as nn
 import math
             
 
-class MyModel(torch.nn.Module):
+class NerSaModel(torch.nn.Module):
     def __init__(self) -> None:
         """
         This method is the constructor of the class.
@@ -14,7 +14,7 @@ class MyModel(torch.nn.Module):
         Args:
             hidden_size: hidden size of the RNN layers
         """
-        super(MyModel, self).__init__()
+        super(NerSaModel, self).__init__()
 
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
