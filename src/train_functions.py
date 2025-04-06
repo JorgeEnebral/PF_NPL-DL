@@ -26,12 +26,13 @@ def train_step(
     model.train()
     losses_ner = []
     losses_sa = []
-    
-    for inputs, ner_targets, sa_targets in train_data:
+
+    # -------------------------------- lengths es necesario para que el modelo sepa la longit de la cadena/frase    
+    for inputs, ner_targets, sa_targets, lengths in train_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
-        outputs = model(inputs)
+        outputs = model(inputs, lengths)
         
         # Calcular pérdida
         loss_ner_ = loss_ner(ner_targets, outputs[0])

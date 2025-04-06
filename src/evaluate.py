@@ -31,6 +31,11 @@ def main() -> None:
 
     test_ner, test_sa = t_step(model, test_data, device)
 
+    return test_ner, test_sa
+
 
 if __name__ == "__main__":
-    main()
+
+    test_ner, test_sa = main("best_model")
+    print(f"TEST ACCURACY NER: {test_ner}")
+    print(f"TEST ACCURACY SA: {test_sa}")

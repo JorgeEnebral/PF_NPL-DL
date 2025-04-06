@@ -1,3 +1,8 @@
+import gensim
+from gensim.models.keyedvectors import KeyedVectors
+from torch.nn.utils.rnn import pad_sequence
+
+
 from typing import Tuple, List
 
 # deep learning libraries
@@ -8,6 +13,7 @@ from transformers import pipeline
 
 # other libraries
 import os
+import torch
 
 # own modules
 from src.utils import set_seed
@@ -38,11 +44,12 @@ class AlertsDataset(Dataset):
 
 
 def load_data(
-    save_path: str,
-    batch_size: int = 64,
-    shuffle: bool = True,
-    drop_last: bool = False,
-    num_workers: int = 0,
+        w2vmodel,
+        save_path: str,
+        batch_size: int = 64,
+        shuffle: bool = True,
+        drop_last: bool = False,
+        num_workers: int = 0,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     
@@ -62,11 +69,13 @@ def load_data(
     test_dataset = AlertsDataset(test_df)
     
     # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers)
+    # he añadido el collate_fn, al cual le paso como argumento el modelo de w2v
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn(w2v_model=w2vmodel))
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn(w2v_model=w2vmodel))
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn(w2v_model=w2vmodel))
     
     return train_loader, val_loader, test_loader
+
 
 def download_data(path) -> None:
     """"""
@@ -112,6 +121,7 @@ def map_ner_tags(ner_tag):
     }
     return [ner_map[tag] for tag in ner_tag]
 
+
 def map_sa_tags(sa_tag):
 
     sa_map = {
@@ -120,11 +130,76 @@ def map_sa_tags(sa_tag):
         2: "Positive", 
     }
     return [sa_map[tag] for tag in sa_tag]   
+
+
+def word2idx(embedding_model, tweet: List[str]) -> torch.Tensor:
+    """
+    Converts a tweet to a list of word indices based on an embedding model.
+
+    This function iterates through each word in the tweet and retrieves its corresponding index
+    from the embedding model's vocabulary. If a word is not present in the model's vocabulary,
+    it is skipped.
+
+    Args:
+        embedding_model (Any): The embedding model with a 'key_to_index' attribute, which maps words to their indices.
+        tweet (List[str]): A list of words representing the tweet.
+
+    Returns:
+        torch.Tensor: A tensor of word indices corresponding to the words in the tweet.
+    """
+    # TODO: Complete the function according to the requirements
+    indices = [
+        embedding_model.key_to_index[word]
+        for word in tweet
+        if word in embedding_model.key_to_index
+    ]
+    return torch.tensor(indices)
+
+
+def collate_fn(batch: List[Tuple[List[str], int]], w2v_model) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Prepares and returns a batch for training/testing in a torch model.
+
+    Args:
+        batch (List[Tuple[List[str], int]]): A list of tuples, where each tuple contains a
+                                             list of words (representing a text) and an integer label.
+        word2idx (Callable): Function that converts words to indices.
+        embedding_model: Word embedding model (e.g., Word2Vec, FastText, etc.).
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: A tuple containing:
+            - texts_padded (torch.Tensor): Tensor of padded word indices.
+            - labels (torch.Tensor): Tensor of labels.
+            - lengths (torch.Tensor): Tensor of sequence lengths.
+    """
+
+    indexes_txt = []
+    clean_labels = []
+
+    for text, label in batch:
+        indexes = word2idx(w2v_model, text)
+        if len(indexes) == 0:
+            indexes = torch.tensor([0])
+        indexes_txt.append(indexes)
+        clean_labels.append(label)
+
+    # Ordenar por longitud descendente
+    lengths = torch.tensor([len(seq) for seq in indexes_txt], dtype=torch.long)
+    sorted_data = sorted(zip(indexes_txt, clean_labels, lengths), key=lambda x: x[2], reverse=True)
+
+    texts_indexes, labels_cleaned, lengths = zip(*sorted_data)
+
+    texts_padded = pad_sequence(texts_indexes, True, 0)
+    labels = torch.tensor(labels_cleaned, dtype=torch.float)
+    lengths = torch.tensor(lengths, dtype=torch.long)
+
+    return texts_padded, labels, lengths
+
     
     
     
-# if __name__ == "__main__":
+if __name__ == "__main__":
     
-#     # python -m src.data para cargarlos
-#     path = "data"
-#     dat_t, dat_v, dat_te = load_data(path)
+    # python -m src.data para cargarlos
+    path = "data"
+    dat_t, dat_v, dat_te = load_data(path)
