@@ -1,19 +1,19 @@
-import gensim
-from gensim.models.keyedvectors import KeyedVectors
-from torch.nn.utils.rnn import pad_sequence
-
-
 from typing import Tuple, List
 
 # deep learning libraries
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from datasets import load_dataset
+from datasets import load_dataset, DatasetDict
 from transformers import pipeline
+from torch.nn.utils.rnn import pad_sequence
 
 # other libraries
 import os
 import torch
+import zipfile
+import requests
+from gensim.models.keyedvectors import KeyedVectors
+from gensim.scripts.glove2word2vec import glove2word2vec
 
 # own modules
 from src.utils import set_seed
@@ -44,9 +44,9 @@ class AlertsDataset(Dataset):
 
 
 def load_data(
-        w2vmodel,
+        w2v_model,
         save_path: str,
-        batch_size: int = 64,
+        batch_size: int = 128,
         shuffle: bool = True,
         drop_last: bool = False,
         num_workers: int = 0,
@@ -59,9 +59,9 @@ def load_data(
         os.makedirs(save_path)
         download_data(save_path)
         
-    train_df = pd.read_csv(f"{save_path}/train.csv", sep=";")
-    val_df = pd.read_csv(f"{save_path}/validation.csv", sep=";")
-    test_df = pd.read_csv(f"{save_path}/test.csv", sep=";")
+    train_df = pd.read_json(os.path.join(save_path, f"train.json"), orient="records", lines=True)
+    val_df = pd.read_json(os.path.join(save_path, f"validation.json"), orient="records", lines=True)
+    test_df = pd.read_json(os.path.join(save_path, f"test.json"), orient="records", lines=True)
 
     # Create datasets
     train_dataset = AlertsDataset(train_df)
@@ -70,9 +70,9 @@ def load_data(
     
     # Create dataloaders
     # he añadido el collate_fn, al cual le paso como argumento el modelo de w2v
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn(w2v_model=w2vmodel))
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn(w2v_model=w2vmodel))
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn(w2v_model=w2vmodel))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn)
     
     return train_loader, val_loader, test_loader
 
@@ -91,7 +91,7 @@ def download_data(path) -> None:
             "ner": data_ner_tags,
             "sa": data_sa
         })
-        df.to_csv(os.path.join(path, f"{part}.csv"), index=False, sep=";")
+        df.to_json(os.path.join(path, f"{part}.json"), orient="records", lines=True)
         
         return None
         
@@ -105,7 +105,44 @@ def download_data(path) -> None:
     
     return None
     
-       
+
+def load_embeddings(path):
+    glove_zip_url = 'https://nlp.stanford.edu/data/glove.twitter.27B.zip'
+    glove_zip_path = os.path.join(path, 'glove.twitter.27B.zip')
+    glove_txt_file = os.path.join(path, 'glove.twitter.27B.50d.txt')
+    word2vec_output_file = os.path.join(path, 'glove.twitter.27B.50d.word2vec.txt')
+
+    # Crear directorio si no existe
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    # Descargar el archivo zip si no existe
+    if not os.path.exists(glove_zip_path):
+        print("DESCARGANDO EMBEDDINGS DE GLOVE...")
+        response = requests.get(glove_zip_url, stream=True)
+        with open(glove_zip_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+    # Descomprimir el archivo si no existe el archivo específico
+    if not os.path.exists(glove_txt_file):
+        print("DESCOMPRIMIENDO ARCHIVO...")
+        with zipfile.ZipFile(glove_zip_path, 'r') as zip_ref:
+            zip_ref.extractall(path)
+
+    # Convertir a formato Word2Vec si no existe
+    if not os.path.exists(word2vec_output_file):
+        print("CONVIRTIENDO A FORMATO WORD2VEC...")
+        glove2word2vec(glove_txt_file, word2vec_output_file)
+
+    # Cargar el modelo
+    print("CARGANDO MODELO DE WORD2VEC...")
+    w2v_model = KeyedVectors.load_word2vec_format(word2vec_output_file, binary=False)
+
+    print("MODELO CARGADO CON ÉXITO.")
+    return w2v_model
+   
 def map_ner_tags(ner_tag):
     # Mapa de etiquetas NER de CoNLL-2003 a las etiquetas del esquema propuesto
     ner_map = {
@@ -132,7 +169,7 @@ def map_sa_tags(sa_tag):
     return [sa_map[tag] for tag in sa_tag]   
 
 
-def word2idx(embedding_model, tweet: List[str]) -> torch.Tensor:
+def word2idx(embedding_model, tweet: List[str], ner: List[int]) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Converts a tweet to a list of word indices based on an embedding model.
 
@@ -148,20 +185,21 @@ def word2idx(embedding_model, tweet: List[str]) -> torch.Tensor:
         torch.Tensor: A tensor of word indices corresponding to the words in the tweet.
     """
     # TODO: Complete the function according to the requirements
-    indices = [
-        embedding_model.key_to_index[word]
-        for word in tweet
-        if word in embedding_model.key_to_index
-    ]
-    return torch.tensor(indices)
+    indexes = []
+    ner_idx = []
+    for idx, word in enumerate(tweet):
+        if word in embedding_model.key_to_index:
+            indexes.append(embedding_model.key_to_index[word])
+            ner_idx.append(ner[idx])
+    return torch.tensor(indexes, dtype=torch.long), torch.tensor(ner_idx, dtype=torch.long)
 
 
-def collate_fn(batch: List[Tuple[List[str], int]], w2v_model) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def collate_fn(batch: List[Tuple[List[str], List[int], int]]):
     """
     Prepares and returns a batch for training/testing in a torch model.
 
     Args:
-        batch (List[Tuple[List[str], int]]): A list of tuples, where each tuple contains a
+        batch (List[Tuple[List[str], List[int], int]]): A list of tuples, where each tuple contains a
                                              list of words (representing a text) and an integer label.
         word2idx (Callable): Function that converts words to indices.
         embedding_model: Word embedding model (e.g., Word2Vec, FastText, etc.).
@@ -172,34 +210,39 @@ def collate_fn(batch: List[Tuple[List[str], int]], w2v_model) -> Tuple[torch.Ten
             - labels (torch.Tensor): Tensor of labels.
             - lengths (torch.Tensor): Tensor of sequence lengths.
     """
-
+    global w2v_model
+    
     indexes_txt = []
-    clean_labels = []
+    labels_ner = []
+    labels_sa = []
 
-    for text, label in batch:
-        indexes = word2idx(w2v_model, text)
-        if len(indexes) == 0:
-            indexes = torch.tensor([0])
-        indexes_txt.append(indexes)
-        clean_labels.append(label)
-
+    for text, label_ner, label_sa in batch:
+        # print(text, label_ner, label_sa); print()
+        indexes, lab_ner = word2idx(w2v_model, text, label_ner)
+        if len(indexes) > 0:
+            indexes_txt.append(indexes)
+            labels_ner.append(lab_ner)
+            labels_sa.append(label_sa)
+    
     # Ordenar por longitud descendente
     lengths = torch.tensor([len(seq) for seq in indexes_txt], dtype=torch.long)
-    sorted_data = sorted(zip(indexes_txt, clean_labels, lengths), key=lambda x: x[2], reverse=True)
+    sorted_data = sorted(zip(indexes_txt, labels_ner, labels_sa, lengths), key=lambda x: x[3], reverse=True)
+    texts_indexes, labels_ner, labels_sa, lengths = zip(*sorted_data)
 
-    texts_indexes, labels_cleaned, lengths = zip(*sorted_data)
-
-    texts_padded = pad_sequence(texts_indexes, True, 0)
-    labels = torch.tensor(labels_cleaned, dtype=torch.float)
+    texts_padded = pad_sequence(texts_indexes, batch_first=True, padding_value=0)
+    labels_ner_padded = pad_sequence(labels_ner, batch_first=True, padding_value=0)
+    labels_sa = torch.tensor(labels_sa, dtype=torch.long)
     lengths = torch.tensor(lengths, dtype=torch.long)
-
-    return texts_padded, labels, lengths
-
     
+    return texts_padded, labels_ner_padded, labels_sa, lengths
     
     
 if __name__ == "__main__":
     
     # python -m src.data para cargarlos
-    path = "data"
-    dat_t, dat_v, dat_te = load_data(path)
+    
+    # DATA_PATH = "data"
+    # EMBEDINGS_PATH = "embeddings"
+
+    # w2v_model = load_embeddings(EMBEDINGS_PATH)
+    # dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)

@@ -13,13 +13,14 @@ from tqdm.auto import tqdm
 from typing import Final
 
 # own modules
-from src.data import load_data, word2idx
+from src.data import load_data, load_embeddings
 from src.models import NerSaModel
 from src.train_functions import train_step, val_step, t_step
 from src.utils import set_seed, save_model, parameters_to_double
 
 # static variables
 DATA_PATH: Final[str] = "data"
+EMBEDINGS_PATH: Final[str] = "embeddings"
 
 # set device and seed
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -38,23 +39,16 @@ def main() -> None:
     dropout = 0.2
 
 
-    # creacion del modelo de embeddings
-    
-    glove_input_file = '../embeddings/glove.twitter.27B.50d.txt'
-    word2vec_output_file = '../embeddings/glove.twitter.27B.50d.word2vec.txt'
-    if not os.path.exists(word2vec_output_file):
-        print("CREANDO EL WORD2VEC")
-        glove2word2vec(glove_input_file, word2vec_output_file)
-
-    print("OBTENCION DEL MODELO DE WORD2VEC")
-    w2v_model = KeyedVectors.load_word2vec_format(word2vec_output_file, binary=False)
-
-    # pesos de los embeddings
-    embedding_weights = w2v_model.vectors
-
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")
-    train_data, val_data, _ = load_data(save_path=DATA_PATH, batch_size=batch_size, shuffle=True, drop_last=False, num_workers=4, w2vmodel=w2v_model)
+    w2v_model = load_embeddings(EMBEDINGS_PATH)
+    embedding_weights = w2v_model.vectors
+    train_data, val_data, _ = load_data(save_path=DATA_PATH, 
+                                        batch_size=batch_size, 
+                                        shuffle=True, 
+                                        drop_last=False, 
+                                        num_workers=4, 
+                                        w2vmodel=w2v_model)
     
     # modelo de prediccion
     print("GENERACION DEL MODELO")
