@@ -237,12 +237,12 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]]):
     return texts_padded, labels_ner_padded, labels_sa, lengths
     
     
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
-    # python -m src.data para cargarlos
+#     # python -m src.data para cargarlos
     
-    # DATA_PATH = "data"
-    # EMBEDINGS_PATH = "embeddings"
+#     DATA_PATH = "data"
+#     EMBEDINGS_PATH = "embeddings"
 
-    # w2v_model = load_embeddings(EMBEDINGS_PATH)
-    # dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)
+#     w2v_model = load_embeddings(EMBEDINGS_PATH)   
+#     dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)

@@ -5,35 +5,37 @@ import torch.nn as nn
 # other libraries
 import math
             
-# ATENCIÓN: DE MOMENTO SOLO HE DISEÑADO LA ¡SA! FALTA LA ¡NER! Y CONECTARLASSSS!!!!!
-# ATENCIÓN
-# ATENCIÓN
-# ATENCIOÓN
-# ATENCIÓNNNNNNN 
-# ÎÎÎÎÎÎÎÎÎÎÎÎÎ
+            
 class NerSaModel(torch.nn.Module):
     def __init__(self, embedding_weights: torch.Tensor, 
                  hidden_size: int, 
                  hidden_layers: int, 
-                 dropout: float, 
-                 output_dim: int=3) -> None:
+                 dropout: float = 0.0, 
+                 mode: str = "NERSA") -> None:
         """
         This method is the constructor of the class.
 
         Args:
-            hidden_size: hidden size of the RNN layers
+            mode: "NER", "SA" "NERSA"
         """
         super(NerSaModel, self).__init__()
-        # TODO: Create an embedding layer with the given pre-trained weights, use the Embedding.from_pretrained function
+        
+        self.mode = mode
+        self.output_dims = {"NER": 9,
+                            "SA": 3}
+
         _, embedding_dim = embedding_weights.shape
         self.embedding = nn.Embedding.from_pretrained(embedding_weights, freeze=True)
 
-        # capa LSTM BIDIRECCIONAL!!!! 
         self.lstm = nn.LSTM(embedding_dim, hidden_size=hidden_size, num_layers=hidden_layers, bidirectional=True, batch_first=True)
 
         self.dropout = nn.Dropout(dropout)
 
-        self.fc = nn.Linear(hidden_size, output_dim)
+        if self.mode == "NERSA":
+            self.fc_ner = nn.Linear(hidden_size, self.output_dims["NER"])
+            self.fc_sa = nn.Linear(hidden_size, self.output_dims["SA"])
+        else:
+            self.fc = nn.Linear(hidden_size, self.output_dims[self.mode])
 
 
     def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:

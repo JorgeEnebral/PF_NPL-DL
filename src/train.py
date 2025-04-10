@@ -37,22 +37,22 @@ def main() -> None:
     lr = 0.001
     batch_size = 128
     dropout = 0.2
-
+    modo = "NER"
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")
     w2v_model = load_embeddings(EMBEDINGS_PATH)
     embedding_weights = w2v_model.vectors
-    train_data, val_data, _ = load_data(save_path=DATA_PATH, 
+    train_data, val_data, _ = load_data(w2v_model = w2v_model,
+                                        save_path=DATA_PATH, 
                                         batch_size=batch_size, 
                                         shuffle=True, 
                                         drop_last=False, 
-                                        num_workers=4, 
-                                        w2vmodel=w2v_model)
+                                        num_workers=4)
     
     # modelo de prediccion
     print("GENERACION DEL MODELO")
-    model = NerSaModel(embedding_weights=embedding_weights, ).to(device)
+    model = NerSaModel(embedding_weights, hidden_size, hidden_layers, mode=modo).to(device)
     parameters_to_double(model)
 
     print("GENERACION DE LOS OPTIMIZADORES")
