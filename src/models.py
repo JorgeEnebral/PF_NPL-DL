@@ -1,10 +1,9 @@
+from typing import Tuple
+
 # deep learning libraries
 import torch
 import torch.nn as nn
 
-# other libraries
-import math
-            
             
 class NerSaModel(torch.nn.Module):
     def __init__(self, embedding_weights: torch.Tensor, 
@@ -24,21 +23,22 @@ class NerSaModel(torch.nn.Module):
         self.output_dims = {"NER": 9,
                             "SA": 3}
 
-        _, embedding_dim = embedding_weights.shape
-        self.embedding = nn.Embedding.from_pretrained(embedding_weights, freeze=True)
+        # PROBAR SI CUADRA
+        _, embedding_dim = embedding_weights.shape                                  
+        self.embedding = nn.Embedding.from_pretrained(embedding_weights, freeze=True, padding_idx=0)
 
         self.lstm = nn.LSTM(embedding_dim, hidden_size=hidden_size, num_layers=hidden_layers, bidirectional=True, batch_first=True)
 
         self.dropout = nn.Dropout(dropout)
 
         if self.mode == "NERSA":
-            self.fc_ner = nn.Linear(hidden_size, self.output_dims["NER"])
-            self.fc_sa = nn.Linear(hidden_size, self.output_dims["SA"])
+            self.fc_ner = nn.Linear(2* hidden_size, self.output_dims["NER"])
+            self.fc_sa = nn.Linear(2 * hidden_size, self.output_dims["SA"])
         else:
-            self.fc = nn.Linear(hidden_size, self.output_dims[self.mode])
+            self.fc = nn.Linear(2 * hidden_size, self.output_dims[self.mode])
 
 
-    def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         This method is the forward pass of the model.
 
@@ -55,11 +55,18 @@ class NerSaModel(torch.nn.Module):
         # lengths.cpu indica la longitud real de la oración, sin tener en cuenta el padding
         packed = nn.utils.rnn.pack_padded_sequence(embedded, lengths.cpu(), batch_first=True, enforce_sorted=True)
 
-        # capa de la LSTM
-        packed_out, (hidden, _) = self.lstm(packed)
+        outputs, (hidden, _) = self.lstm(packed)
+        hiddens_concat = torch.cat((hidden[-1], hidden[-2]), dim=-1)
 
-        # añadimos dropout para que no haga overfittng
-        output = self.dropout(hidden[-1])
-
-        # fully connected
-        return self.fc(output)
+        if self.mode == "NER":
+            output_ner = self.fc(outputs)
+            return output_ner, torch.empty()
+        elif self.mode == "SA":
+            output_sa = self.fc(hiddens_concat)
+            return output_sa, torch.empty()
+        elif self.mode == "NERSA":
+            output_ner = self.fc_ner(outputs)
+            output_sa = self.fc_sa(hiddens_concat)
+            return output_ner, output_sa
+        
+        return torch.empty(), torch.empty()

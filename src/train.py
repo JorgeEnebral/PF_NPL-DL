@@ -15,7 +15,7 @@ from typing import Final
 # own modules
 from src.data import load_data, load_embeddings
 from src.models import NerSaModel
-from src.train_functions import train_step, val_step, t_step
+from src.train_functions import train_step, val_step, t_step, train_step_nersa, val_step_nersa, t_step_nersa
 from src.utils import set_seed, save_model, parameters_to_double
 
 # static variables
@@ -36,46 +36,54 @@ def main() -> None:
     hidden_layers = 3
     lr = 0.001
     batch_size = 128
-    dropout = 0.2
-    modo = "NER"
+    dropout = 0.0
+    modo = "NER" # ["NER", "SA", "NERSA"]
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")
     w2v_model = load_embeddings(EMBEDINGS_PATH)
     embedding_weights = w2v_model.vectors
-    train_data, val_data, _ = load_data(w2v_model = w2v_model,
+    train_data, val_data, test_data = load_data(w2v_model = w2v_model,
                                         save_path=DATA_PATH, 
                                         batch_size=batch_size, 
                                         shuffle=True, 
                                         drop_last=False, 
                                         num_workers=4)
     
-    # modelo de prediccion
-    print("GENERACION DEL MODELO")
+    # GENERACION DEL MODELO
     model = NerSaModel(embedding_weights, hidden_size, hidden_layers, mode=modo).to(device)
     parameters_to_double(model)
 
-    print("GENERACION DE LOS OPTIMIZADORES")
-    optimizer_ner = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)  # Parámetros poner los usados por ner
-    optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)  # Parámetros poner los usados por sa
-    
-    print("CREACION DE LAS FUNCIONES DE PERDIDA")
+    optimizer_ner = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)
     loss_ner = torch.nn.CrossEntropyLoss()
+    
+    optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)
     loss_sa = torch.nn.CrossEntropyLoss()
 
     # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.2)  NECESARIO?
     writer = SummaryWriter()
     
-    print("ENTRENANDO...")
+    print("ENTRENANDO")
     for epoch in tqdm(range(num_epochs)):
-        train_step(model, train_data, loss_ner, loss_sa, optimizer_ner, optimizer_sa, writer, epoch, device)
-        val_step(model, val_data, loss_ner, loss_sa, writer, epoch, device)
+        if modo == "NERSA":
+            train_step_nersa(model, train_data, loss_ner, loss_sa, optimizer_ner, optimizer_sa, writer, epoch, device)
+            val_step_nersa(model, val_data, loss_ner, loss_sa, writer, epoch, device)
+        else:
+            # Da igual el nombre de las variables loss_ner y optimizer_ner
+            train_step(modo, model, train_data, loss_ner, optimizer_ner, writer, epoch, device)
+            val_step(modo, model, val_data, loss_ner, writer, epoch, device)
 
-    print("ENTRENAMIENTO COMPLETADO")
+    print("ENTRENAMIENTO COMPLETADO\n")
 
-    txt2save: str = f"glove_27B_50d_{num_epochs}_{hidden_size}_{hidden_layers}_{lr}_{batch_size}_{dropout}"
+    if modo == "NERSA":
+        t_step_nersa(model, test_data, device)
+    else:
+        t_step_nersa(model, test_data, device)
+    
+    txt2save: str = f"glove_50d_{modo}_{num_epochs}_{batch_size}_{hidden_size}_{hidden_layers}_{lr}_{dropout}"
     save_model(model, txt2save)
-    print("MODELO GUARDADO")
+    
+    print("\nMODELO GUARDADO")
 
     writer.close()
 
