@@ -14,6 +14,8 @@ import zipfile
 import requests
 from gensim.models.keyedvectors import KeyedVectors
 from gensim.scripts.glove2word2vec import glove2word2vec
+from functools import partial
+
 
 # own modules
 from src.utils import set_seed
@@ -69,10 +71,10 @@ def load_data(
     test_dataset = AlertsDataset(test_df)
     
     # Create dataloaders
-    # he añadido el collate_fn, al cual le paso como argumento el modelo de w2v
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_fn)
+    collate_with_w2v = partial(collate_fn, w2v_model=w2v_model)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
     
     return train_loader, val_loader, test_loader
 
@@ -189,12 +191,12 @@ def word2idx(embedding_model, tweet: List[str], ner: List[int]) -> Tuple[torch.T
     ner_idx = []
     for idx, word in enumerate(tweet):
         if word in embedding_model.key_to_index:
-            indexes.append(embedding_model.key_to_index[word])
+            indexes.append(embedding_model.key_to_index[word]+1)
             ner_idx.append(ner[idx])
     return torch.tensor(indexes, dtype=torch.long), torch.tensor(ner_idx, dtype=torch.long)
 
 
-def collate_fn(batch: List[Tuple[List[str], List[int], int]]):
+def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
     """
     Prepares and returns a batch for training/testing in a torch model.
 
@@ -210,8 +212,6 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]]):
             - labels (torch.Tensor): Tensor of labels.
             - lengths (torch.Tensor): Tensor of sequence lengths.
     """
-    global w2v_model
-    
     indexes_txt = []
     labels_ner = []
     labels_sa = []
@@ -231,18 +231,18 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]]):
 
     texts_padded = pad_sequence(texts_indexes, batch_first=True, padding_value=0)
     labels_ner_padded = pad_sequence(labels_ner, batch_first=True, padding_value=0)
-    labels_sa = torch.tensor(labels_sa, dtype=torch.long)
-    lengths = torch.tensor(lengths, dtype=torch.long)
+    labels_sa = torch.tensor(labels_sa, dtype=torch.int32)
+    lengths = torch.tensor(lengths, dtype=torch.int32)
     
     return texts_padded, labels_ner_padded, labels_sa, lengths
     
     
 # if __name__ == "__main__":
     
-#     # python -m src.data para cargarlos
+    # python -m src.data para cargarlos
     
-#     DATA_PATH = "data"
-#     EMBEDINGS_PATH = "embeddings"
+    # DATA_PATH = "data"
+    # EMBEDINGS_PATH = "embeddings"
 
-#     w2v_model = load_embeddings(EMBEDINGS_PATH)   
-#     dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)
+    # w2v_model = load_embeddings(EMBEDINGS_PATH) 
+    #  dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)

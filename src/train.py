@@ -1,5 +1,6 @@
-    # deep learning libraries
+# deep learning libraries
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from gensim.models.keyedvectors import KeyedVectors
@@ -31,27 +32,32 @@ def main() -> None:
     This function is the main program for training.
     """
     # parametros
-    num_epochs = 100
-    hidden_size = 128
-    hidden_layers = 3
+    num_epochs = 5
+    hidden_size = 64
+    hidden_layers = 2
     lr = 0.001
     batch_size = 128
     dropout = 0.0
-    modo = "NER" # ["NER", "SA", "NERSA"]
+    modo = "SA" # ["NER", "SA", "NERSA"]
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")
     w2v_model = load_embeddings(EMBEDINGS_PATH)
-    embedding_weights = w2v_model.vectors
+    embedding_weights = torch.tensor(w2v_model.vectors)
+    
+    padding_vector = torch.zeros((1, embedding_weights.shape[1]))
+    embedding_weights = torch.cat((padding_vector, embedding_weights), dim=0) 
+    
     train_data, val_data, test_data = load_data(w2v_model = w2v_model,
-                                        save_path=DATA_PATH, 
-                                        batch_size=batch_size, 
-                                        shuffle=True, 
-                                        drop_last=False, 
-                                        num_workers=4)
+                                                save_path=DATA_PATH, 
+                                                batch_size=batch_size, 
+                                                shuffle=True, 
+                                                drop_last=False, 
+                                                num_workers=4)
     
     # GENERACION DEL MODELO
     model = NerSaModel(embedding_weights, hidden_size, hidden_layers, mode=modo).to(device)
+    model.lstm.flatten_parameters()  # Lo recomienda chat
     parameters_to_double(model)
 
     optimizer_ner = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)
@@ -78,7 +84,7 @@ def main() -> None:
     if modo == "NERSA":
         t_step_nersa(model, test_data, device)
     else:
-        t_step_nersa(model, test_data, device)
+        t_step(modo, model, test_data, device)
     
     txt2save: str = f"glove_50d_{modo}_{num_epochs}_{batch_size}_{hidden_size}_{hidden_layers}_{lr}_{dropout}"
     save_model(model, txt2save)

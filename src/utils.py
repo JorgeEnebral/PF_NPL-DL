@@ -8,6 +8,61 @@ import os
 import random
 
 
+class Accuracy:
+    """
+    This class is the accuracy object.
+
+    Attr:
+        correct: number of correct predictions.
+        total: number of total examples to classify.
+    """
+
+    correct: int
+    total: int
+
+    def __init__(self, modo: str) -> None:
+        """
+        Constructor of Accuracy class.
+        Initializes correct and total to zero.
+        """
+        self.correct = 0
+        self.total = 0
+        self.modo = modo
+
+    def update(self, logits: torch.Tensor, labels: torch.Tensor) -> None:
+        """
+        Updates the value of correct and total counts.
+
+        Args:
+            logits: outputs of the model.
+                Dimensions for SA: [batch, num_classes]
+                Dimensions for NER: [batch, seq_len, num_classes]
+            labels: true labels. For NER: [batch, seq_len]
+        """
+        if self.modo == "SA":
+            predictions = logits.argmax(dim=1).type_as(labels)
+            self.correct += int((predictions == labels).sum().item())
+            self.total += labels.shape[0]
+
+        else:  # NER o NERSA
+            # logits: [batch, seq_len, num_classes]
+            # labels: [batch, seq_len]
+            predictions = logits.argmax(dim=2).type_as(labels)
+
+            # Flatten both to compute token-level accuracy
+            mask = labels != -100  # O cualquier ignore_index que estés usando
+            self.correct += int((predictions[mask] == labels[mask]).sum().item())
+            self.total += int(mask.sum().item())
+
+        return None
+
+    def compute(self) -> float:
+        """
+        Returns the accuracy value.
+        """
+        return self.correct / self.total if self.total > 0 else 0.0
+
+
 @torch.no_grad()
 def parameters_to_double(model: torch.nn.Module) -> None:
     """

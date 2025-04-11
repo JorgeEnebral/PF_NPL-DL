@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 # deep learning libraries
 import torch
@@ -30,15 +30,13 @@ class NerSaModel(torch.nn.Module):
         self.lstm = nn.LSTM(embedding_dim, hidden_size=hidden_size, num_layers=hidden_layers, bidirectional=True, batch_first=True)
 
         self.dropout = nn.Dropout(dropout)
-
-        if self.mode == "NERSA":
-            self.fc_ner = nn.Linear(2* hidden_size, self.output_dims["NER"])
-            self.fc_sa = nn.Linear(2 * hidden_size, self.output_dims["SA"])
-        else:
-            self.fc = nn.Linear(2 * hidden_size, self.output_dims[self.mode])
+        
+        self.fc_ner = nn.Linear(2 * hidden_size, self.output_dims["NER"]) if mode == "NERSA" else nn.Identity()
+        self.fc_sa = nn.Linear(2 * hidden_size, self.output_dims["SA"]) if mode == "NERSA" else nn.Identity()
+        self.fc = nn.Linear(2 * hidden_size, self.output_dims[self.mode])
 
 
-    def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         This method is the forward pass of the model.
 
@@ -55,18 +53,18 @@ class NerSaModel(torch.nn.Module):
         # lengths.cpu indica la longitud real de la oración, sin tener en cuenta el padding
         packed = nn.utils.rnn.pack_padded_sequence(embedded, lengths.cpu(), batch_first=True, enforce_sorted=True)
 
-        outputs, (hidden, _) = self.lstm(packed)
+        packed_output, (hidden, _) = self.lstm(packed)
+        outputs, _ = nn.utils.rnn.pad_packed_sequence(packed_output, batch_first=True)
         hiddens_concat = torch.cat((hidden[-1], hidden[-2]), dim=-1)
 
         if self.mode == "NER":
             output_ner = self.fc(outputs)
-            return output_ner, torch.empty()
+            return output_ner, None
         elif self.mode == "SA":
             output_sa = self.fc(hiddens_concat)
-            return output_sa, torch.empty()
+            return output_sa, None
         elif self.mode == "NERSA":
             output_ner = self.fc_ner(outputs)
             output_sa = self.fc_sa(hiddens_concat)
             return output_ner, output_sa
-        
-        return torch.empty(), torch.empty()
+        return None, None

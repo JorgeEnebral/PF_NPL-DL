@@ -5,7 +5,9 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 # other libraries
-from typing import Optional, Tuple
+from typing import Tuple
+
+from src.utils import Accuracy
 
 
 # NER o SA
@@ -21,37 +23,44 @@ def train_step(
     device: torch.device,
 ) -> None:
     """
-    This function train the model.
+    This function trains the model.
     """
     model.train()
     losses = []
+    acc = Accuracy(modo)
 
     for inputs, ner_targets, sa_targets, lengths in train_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
-        outputs = model(inputs, lengths)
+        outputs, _ = model(inputs, lengths)
         
         # Calcular pérdida
         if modo == "NER":
-            idx = 0
             targets = ner_targets
         else:
-            idx = 1
             targets = sa_targets
-        loss_ = loss(targets, outputs[idx])
+        
+        loss_ = loss(outputs.float(), targets.long())
+        
+        # Update accuracy
+        acc.update(outputs, targets)
         
         # Backward y optimización
         optimizer.zero_grad()
-
         loss_.backward()
-
         optimizer.step()
         
         losses.append(loss_.item())
+
+    # Compute accuracy and loss
+    accuracy = acc.compute()
     
     writer.add_scalar(f"train/loss_{modo}", np.mean(losses), epoch)
-    print(f"Epoch {epoch}: Train Loss {modo} = {np.mean(losses):.4f}")
+    writer.add_scalar(f"train/accuracy_{modo}", accuracy, epoch)
+    
+    print(f"Epoch {epoch}: Train Loss {modo} = {np.mean(losses):.4f} | Train Accuracy {modo} = {accuracy:.4f}")
+
 
 @torch.no_grad()
 def val_step(
@@ -59,36 +68,44 @@ def val_step(
     model: torch.nn.Module,
     val_data: DataLoader,
     loss: torch.nn.Module,
-    #scheduler: Optional[torch.optim.lr_scheduler.LRScheduler],
     writer: SummaryWriter,
     epoch: int,
     device: torch.device,
 ) -> None:
     """
-    This function train the model.
+    This function validates the model.
     """
     model.eval()
     losses = []
+    acc = Accuracy(modo)
 
     for inputs, ner_targets, sa_targets, lengths in val_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
-        outputs = model(inputs, lengths)
+        outputs, _ = model(inputs, lengths)
         
         # Calcular pérdida
         if modo == "NER":
-            idx = 0
             targets = ner_targets
         else:
-            idx = 1
             targets = sa_targets
-        loss_ = loss(targets, outputs[idx])
+        
+        loss_ = loss(outputs.float(), targets.long())
+        
+        # Update accuracy
+        acc.update(outputs, targets)
         
         losses.append(loss_.item())
+
+    # Compute accuracy and loss
+    accuracy = acc.compute()
     
     writer.add_scalar(f"val/loss_{modo}", np.mean(losses), epoch)
-    print(f"Epoch {epoch}: Validation Loss {modo} = {np.mean(losses):.4f}")
+    writer.add_scalar(f"val/accuracy_{modo}", accuracy, epoch)
+    
+    print(f"Epoch {epoch}: Validation Loss {modo} = {np.mean(losses):.4f} | Validation Accuracy {modo} = {accuracy:.4f}")
+
 
 @torch.no_grad()
 def t_step(
@@ -101,29 +118,36 @@ def t_step(
     This function tests the model.
     """
     model.eval()
-    loss = torch.nn.CrossEntropyLoss()
     losses = []
+    acc = Accuracy(modo)
+    loss_fn = torch.nn.CrossEntropyLoss()
 
     for inputs, ner_targets, sa_targets, lengths in test_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
-        outputs = model(inputs, lengths)
+        outputs, _ = model(inputs, lengths)
         
         # Calcular pérdida
         if modo == "NER":
-            idx = 0
             targets = ner_targets
         else:
-            idx = 1
             targets = sa_targets
-        loss_ = loss(targets, outputs[idx])
+        
+        loss_ = loss_fn(outputs.float(), targets.long())
+        
+        # Update accuracy
+        acc.update(outputs, targets)
         
         losses.append(loss_.item())
+
+    # Compute accuracy and loss
+    accuracy = acc.compute()
     
-    test = np.mean(losses)
-    print(f"Test Loss {modo} = {test:.4f}")
-    return test
+    test_loss = np.mean(losses)
+    print(f"Test Loss {modo} = {test_loss:.4f} | Test Accuracy {modo} = {accuracy:.4f}")
+    
+    return test_loss, accuracy
 
 
 # NER y SA
@@ -140,22 +164,27 @@ def train_step_nersa(
     device: torch.device,
 ) -> None:
     """
-    This function train the model.
+    This function trains the model.
     """
     model.train()
     losses_ner = []
     losses_sa = []
+    acc_ner = Accuracy("NER")
+    acc_sa = Accuracy("SA")
 
-    # -------------------------------- lengths es necesario para que el modelo sepa la longit de la cadena/frase    
     for inputs, ner_targets, sa_targets, lengths in train_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
         outputs = model(inputs, lengths)
         
-        # Calcular pérdida
+        # Calcular pérdidas
         loss_ner_ = loss_ner(ner_targets, outputs[0])
         loss_sa_ = loss_sa(sa_targets, outputs[1])
+        
+        # Update accuracy
+        acc_ner.update(outputs[0], ner_targets)
+        acc_sa.update(outputs[1], sa_targets)
         
         # Backward y optimización
         optimizer_ner.zero_grad()
@@ -169,10 +198,19 @@ def train_step_nersa(
         
         losses_ner.append(loss_ner_.item())
         losses_sa.append(loss_sa_.item())
-    
+
+    # Compute accuracy and loss for NER and SA
+    accuracy_ner = acc_ner.compute()
+    accuracy_sa = acc_sa.compute()
+
     writer.add_scalar("train/loss_ner", np.mean(losses_ner), epoch)
     writer.add_scalar("train/loss_sa", np.mean(losses_sa), epoch)
-    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses_ner):.4f} | Train Loss SA = {np.mean(losses_sa):.4f}")
+    writer.add_scalar("train/accuracy_ner", accuracy_ner, epoch)
+    writer.add_scalar("train/accuracy_sa", accuracy_sa, epoch)
+
+    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses_ner):.4f} | Train Accuracy NER = {accuracy_ner:.4f}")
+    print(f"Epoch {epoch}: Train Loss SA = {np.mean(losses_sa):.4f} | Train Accuracy SA = {accuracy_sa:.4f}")
+
 
 @torch.no_grad()
 def val_step_nersa(
@@ -180,34 +218,48 @@ def val_step_nersa(
     val_data: DataLoader,
     loss_ner: torch.nn.Module,
     loss_sa: torch.nn.Module,
-    #scheduler: Optional[torch.optim.lr_scheduler.LRScheduler],
     writer: SummaryWriter,
     epoch: int,
     device: torch.device,
 ) -> None:
     """
-    This function train the model.
+    This function validates the model.
     """
     model.eval()
     losses_ner = []
     losses_sa = []
-    
+    acc_ner = Accuracy("NER")
+    acc_sa = Accuracy("SA")
+
     for inputs, ner_targets, sa_targets in val_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
         outputs = model(inputs)
         
-        # Calcular pérdida
+        # Calcular pérdidas
         loss_ner_ = loss_ner(ner_targets, outputs[0])
         loss_sa_ = loss_sa(sa_targets, outputs[1])
 
+        # Update accuracy
+        acc_ner.update(outputs[0], ner_targets)
+        acc_sa.update(outputs[1], sa_targets)
+
         losses_ner.append(loss_ner_.item())
         losses_sa.append(loss_sa_.item())
-    
+
+    # Compute accuracy and loss for NER and SA
+    accuracy_ner = acc_ner.compute()
+    accuracy_sa = acc_sa.compute()
+
     writer.add_scalar("val/loss_ner", np.mean(losses_ner), epoch)
     writer.add_scalar("val/loss_sa", np.mean(losses_sa), epoch)
-    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses_ner):.4f} | Train Loss SA = {np.mean(losses_sa):.4f}")
+    writer.add_scalar("val/accuracy_ner", accuracy_ner, epoch)
+    writer.add_scalar("val/accuracy_sa", accuracy_sa, epoch)
+
+    print(f"Epoch {epoch}: Validation Loss NER = {np.mean(losses_ner):.4f} | Validation Accuracy NER = {accuracy_ner:.4f}")
+    print(f"Epoch {epoch}: Validation Loss SA = {np.mean(losses_sa):.4f} | Validation Accuracy SA = {accuracy_sa:.4f}")
+
 
 @torch.no_grad()
 def t_step_nersa(
@@ -221,24 +273,36 @@ def t_step_nersa(
     model.eval()
     losses_ner = []
     losses_sa = []
+    acc_ner = Accuracy("NER")
+    acc_sa = Accuracy("SA")
     loss_ner = torch.nn.CrossEntropyLoss()
     loss_sa = torch.nn.CrossEntropyLoss()
-    
+
     for inputs, ner_targets, sa_targets in test_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
         
         # Forward pass
         outputs = model(inputs)
         
-        # Calcular pérdida
+        # Calcular pérdidas
         loss_ner_ = loss_ner(ner_targets, outputs[0])
         loss_sa_ = loss_sa(sa_targets, outputs[1])
 
+        # Update accuracy
+        acc_ner.update(outputs[0], ner_targets)
+        acc_sa.update(outputs[1], sa_targets)
+
         losses_ner.append(loss_ner_.item())
         losses_sa.append(loss_sa_.item())
-    
+
+    # Compute accuracy and loss for NER and SA
+    accuracy_ner = acc_ner.compute()
+    accuracy_sa = acc_sa.compute()
+
     test_ner = np.mean(losses_ner)
     test_sa = np.mean(losses_sa)
 
-    print(f"Test NER: {test_ner:.4f} | Test SA: {test_sa:.4f}")
+    print(f"Test Loss NER: {test_ner:.4f} | Test Accuracy NER: {accuracy_ner:.4f}")
+    print(f"Test Loss SA: {test_sa:.4f} | Test Accuracy SA: {accuracy_sa:.4f}")
+    
     return test_ner, test_sa

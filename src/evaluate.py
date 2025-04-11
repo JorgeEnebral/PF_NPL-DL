@@ -8,7 +8,7 @@ from typing import Final
 import re
 
 # own modules
-from src.data import load_data, load_embeddings
+om src.data import load_data, load_embeddings
 from src.utils import set_seed, load_model
 from src.train_functions import t_step, t_step_nersa
 
