@@ -33,12 +33,12 @@ def main() -> None:
     """
     # parametros
     num_epochs = 5
-    hidden_size = 64
-    hidden_layers = 2
-    lr = 0.001
+    hidden_size = 5
+    hidden_layers = 1
+    lr = 1
     batch_size = 128
     dropout = 0.0
-    modo = "SA" # ["NER", "SA", "NERSA"]
+    modo = "NER" # ["NER", "SA", "NERSA"]
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")

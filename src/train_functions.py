@@ -37,14 +37,12 @@ def train_step(
         
         # Calcular pérdida
         if modo == "NER":
-            targets = ner_targets
+            _, _, D = outputs.size()
+            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long()) # [batch_size, lenght]
+            acc.update(outputs, ner_targets)
         else:
-            targets = sa_targets
-        
-        loss_ = loss(outputs.float(), targets.long())
-        
-        # Update accuracy
-        acc.update(outputs, targets)
+            loss_ = loss(outputs.float(), sa_targets.long())  # [batch_size,]
+            acc.update(outputs, sa_targets)
         
         # Backward y optimización
         optimizer.zero_grad()
@@ -87,14 +85,12 @@ def val_step(
         
         # Calcular pérdida
         if modo == "NER":
-            targets = ner_targets
+            _, _, D = outputs.size()
+            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long()) # [batch_size, lenght]
+            acc.update(outputs, ner_targets)
         else:
-            targets = sa_targets
-        
-        loss_ = loss(outputs.float(), targets.long())
-        
-        # Update accuracy
-        acc.update(outputs, targets)
+            loss_ = loss(outputs.float(), sa_targets.long())  # [batch_size,]
+            acc.update(outputs, sa_targets)
         
         losses.append(loss_.item())
 
@@ -120,7 +116,7 @@ def t_step(
     model.eval()
     losses = []
     acc = Accuracy(modo)
-    loss_fn = torch.nn.CrossEntropyLoss()
+    loss = torch.nn.CrossEntropyLoss()
 
     for inputs, ner_targets, sa_targets, lengths in test_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
@@ -130,14 +126,12 @@ def t_step(
         
         # Calcular pérdida
         if modo == "NER":
-            targets = ner_targets
+            _, _, D = outputs.size()
+            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long()) # [batch_size, lenght]
+            acc.update(outputs, ner_targets)
         else:
-            targets = sa_targets
-        
-        loss_ = loss_fn(outputs.float(), targets.long())
-        
-        # Update accuracy
-        acc.update(outputs, targets)
+            loss_ = loss(outputs.float(), sa_targets.long())  # [batch_size,]
+            acc.update(outputs, sa_targets)
         
         losses.append(loss_.item())
 
@@ -179,8 +173,8 @@ def train_step_nersa(
         outputs = model(inputs, lengths)
         
         # Calcular pérdidas
-        loss_ner_ = loss_ner(ner_targets, outputs[0])
-        loss_sa_ = loss_sa(sa_targets, outputs[1])
+        loss_ner_ = loss_ner(ner_targets.double(), outputs[0].double())
+        loss_sa_ = loss_sa(sa_targets.double(), outputs[1].double())
         
         # Update accuracy
         acc_ner.update(outputs[0], ner_targets)
