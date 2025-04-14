@@ -6,6 +6,7 @@ from torch.jit import RecursiveScriptModule
 # other libraries
 import os
 import random
+from typing import Optional, Tuple
 
 
 class Accuracy:
@@ -20,14 +21,18 @@ class Accuracy:
     correct: int
     total: int
 
-    def __init__(self, modo: str) -> None:
+    def __init__(self, mode: str) -> None:
         """
         Constructor of Accuracy class.
         Initializes correct and total to zero.
         """
+        self.mode = mode
+        
         self.correct = 0
         self.total = 0
-        self.modo = modo
+        
+        self.correct_out = 0
+        self.total_out = 0
 
     def update(self, logits: torch.Tensor, labels: torch.Tensor) -> None:
         """
@@ -39,28 +44,40 @@ class Accuracy:
                 Dimensions for NER: [batch, seq_len, num_classes]
             labels: true labels. For NER: [batch, seq_len]
         """
-        if self.modo == "SA":
+        if self.mode == "SA":
             predictions = logits.argmax(dim=1).type_as(labels)
-            self.correct += int((predictions == labels).sum().item())
+            self.correct += int((predictions == labels).sum().item()) # bs
             self.total += labels.shape[0]
 
         else:  # NER o NERSA
-            # logits: [batch, seq_len, num_classes]
-            # labels: [batch, seq_len]
             predictions = logits.argmax(dim=2).type_as(labels)
-
-            # Flatten both to compute token-level accuracy
-            mask = labels != -100  # O cualquier ignore_index que estés usando
-            self.correct += int((predictions[mask] == labels[mask]).sum().item())
+            print(logits.size())
+            print(labels.size())
+            print(predictions.size())
+            print(predictions)
+            mask_0 = labels == 0
+            mask = (labels != -1) & (labels != 0) # ignorar padding (0)
+            
+            predictions == labels
+            (predictions == labels) & mask
+            self.correct += int(((predictions == labels) & mask).sum().item())
             self.total += int(mask.sum().item())
-
+            
+            self.correct_out += int(((predictions == labels) & mask_0).sum().item())
+            self.total_out += int(mask_0.sum().item())
+            
         return None
 
-    def compute(self) -> float:
+    def compute(self) -> Tuple[float, Optional[float]]:
         """
         Returns the accuracy value.
         """
-        return self.correct / self.total if self.total > 0 else 0.0
+        if self.mode == "SA":
+            return self.correct / self.total if self.total > 0 else 0.0, None
+        else:
+            labels = self.correct / self.total if self.total > 0 else 0.0
+            out = self.correct_out / self.total_out if self.total_out > 0 else 0.0
+            return labels, out
 
 
 @torch.no_grad()

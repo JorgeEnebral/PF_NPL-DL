@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 # deep learning libraries
 import pandas as pd
@@ -52,7 +52,8 @@ def load_data(
         shuffle: bool = True,
         drop_last: bool = False,
         num_workers: int = 0,
-) -> tuple[DataLoader, DataLoader, DataLoader]:
+        unique_test: bool = False
+) -> tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
     """
     
     """
@@ -60,6 +61,13 @@ def load_data(
     if not os.path.exists(save_path):
         os.makedirs(save_path)
         download_data(save_path)
+        
+    if unique_test:
+        unique_test_df = pd.read_json(os.path.join(save_path, f"unique_test.json"), orient="records", lines=True)
+        unique_test_dataset = AlertsDataset(unique_test_df)
+        collate_with_w2v = partial(collate_fn, w2v_model=w2v_model)
+        unique_test_loader = DataLoader(unique_test_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
+        return unique_test_loader, None, None
         
     train_df = pd.read_json(os.path.join(save_path, f"train.json"), orient="records", lines=True)
     val_df = pd.read_json(os.path.join(save_path, f"validation.json"), orient="records", lines=True)
@@ -171,7 +179,7 @@ def map_sa_tags(sa_tag):
     return [sa_map[tag] for tag in sa_tag]   
 
 
-def word2idx(embedding_model, tweet: List[str], ner: List[int]) -> Tuple[torch.Tensor, torch.Tensor]:
+def word2idx(embedding_model, tweet: List[str], ner: List[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Converts a tweet to a list of word indices based on an embedding model.
 
@@ -191,8 +199,9 @@ def word2idx(embedding_model, tweet: List[str], ner: List[int]) -> Tuple[torch.T
     ner_idx = []
     for idx, word in enumerate(tweet):
         if word in embedding_model.key_to_index:
-            indexes.append(embedding_model.key_to_index[word]+1)
-            ner_idx.append(ner[idx])
+            indexes.append(embedding_model.key_to_index[word]+1)  # Para el vector de padding en la posición 0
+            if ner is not None:
+                ner_idx.append(ner[idx])
     return torch.tensor(indexes, dtype=torch.long), torch.tensor(ner_idx, dtype=torch.long)
 
 
@@ -217,11 +226,11 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
     labels_sa = []
 
     for text, label_ner, label_sa in batch:
-        # print(text, label_ner, label_sa); print()
+        # print(text, label_ner, label_sa); print()a
         indexes, lab_ner = word2idx(w2v_model, text, label_ner)
         if len(indexes) > 0:
             indexes_txt.append(indexes)
-            labels_ner.append(lab_ner)
+            labels_ner.append(lab_ner) # Para el vector de padding en la posición 0
             labels_sa.append(label_sa)
     
     # Ordenar por longitud descendente
@@ -230,7 +239,7 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
     texts_indexes, labels_ner, labels_sa, lengths = zip(*sorted_data)
 
     texts_padded = pad_sequence(texts_indexes, batch_first=True, padding_value=0)
-    labels_ner_padded = pad_sequence(labels_ner, batch_first=True, padding_value=0)
+    labels_ner_padded = pad_sequence(labels_ner, batch_first=True, padding_value=-1)
     labels_sa = torch.tensor(labels_sa, dtype=torch.int32)
     lengths = torch.tensor(lengths, dtype=torch.int32)
     

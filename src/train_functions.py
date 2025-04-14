@@ -31,7 +31,7 @@ def train_step(
 
     for inputs, ner_targets, sa_targets, lengths in train_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
-        
+        #print(ner_targets)
         # Forward pass
         outputs, _ = model(inputs, lengths)
         
@@ -52,12 +52,15 @@ def train_step(
         losses.append(loss_.item())
 
     # Compute accuracy and loss
-    accuracy = acc.compute()
+    acc_labels, acc_out = acc.compute()
     
     writer.add_scalar(f"train/loss_{modo}", np.mean(losses), epoch)
-    writer.add_scalar(f"train/accuracy_{modo}", accuracy, epoch)
+    writer.add_scalar(f"train/accuracy_{modo}", acc_labels, epoch)
+    if modo == "NER":
+        writer.add_scalar(f"train/accuracy_{modo}_out", acc_out, epoch)
     
-    print(f"Epoch {epoch}: Train Loss {modo} = {np.mean(losses):.4f} | Train Accuracy {modo} = {accuracy:.4f}")
+    print(f"Epoch {epoch}: Train Loss {modo} = {np.mean(losses):.4f} | Train Accuracy = {acc_labels:.4f}" +
+          (f" | Train Out Accuracy = {acc_out:.4f}" if modo == "NER" else ""))
 
 
 @torch.no_grad()
@@ -95,12 +98,15 @@ def val_step(
         losses.append(loss_.item())
 
     # Compute accuracy and loss
-    accuracy = acc.compute()
+    acc_labels, acc_out = acc.compute()
     
     writer.add_scalar(f"val/loss_{modo}", np.mean(losses), epoch)
-    writer.add_scalar(f"val/accuracy_{modo}", accuracy, epoch)
-    
-    print(f"Epoch {epoch}: Validation Loss {modo} = {np.mean(losses):.4f} | Validation Accuracy {modo} = {accuracy:.4f}")
+    writer.add_scalar(f"val/accuracy_{modo}", acc_labels, epoch)
+    if modo == "NER":
+        writer.add_scalar(f"val/accuracy_{modo}_out", acc_out, epoch)
+
+    print(f"Epoch {epoch}: Validation Loss {modo} = {np.mean(losses):.4f} | Validation Accuracy = {acc_labels:.4f}" +
+          (f" | Validation Out Accuracy = {acc_out:.4f}" if modo == "NER" else ""))
 
 
 @torch.no_grad()
@@ -110,9 +116,6 @@ def t_step(
     test_data: DataLoader,
     device: torch.device,
 ) -> Tuple[float, float]:
-    """
-    This function tests the model.
-    """
     model.eval()
     losses = []
     acc = Accuracy(modo)
@@ -120,28 +123,26 @@ def t_step(
 
     for inputs, ner_targets, sa_targets, lengths in test_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
-        
-        # Forward pass
         outputs, _ = model(inputs, lengths)
-        
-        # Calcular pérdida
+
         if modo == "NER":
             _, _, D = outputs.size()
-            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long()) # [batch_size, lenght]
+            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long())
             acc.update(outputs, ner_targets)
         else:
-            loss_ = loss(outputs.float(), sa_targets.long())  # [batch_size,]
+            loss_ = loss(outputs.float(), sa_targets.long())
             acc.update(outputs, sa_targets)
-        
+
         losses.append(loss_.item())
 
-    # Compute accuracy and loss
-    accuracy = acc.compute()
-    
+    acc_labels, acc_out = acc.compute()
     test_loss = np.mean(losses)
-    print(f"Test Loss {modo} = {test_loss:.4f} | Test Accuracy {modo} = {accuracy:.4f}")
-    
-    return test_loss, accuracy
+
+    print(f"Test Loss {modo} = {test_loss:.4f} | Test Accuracy = {acc_labels:.4f}" +
+          (f" | Test Out Accuracy = {acc_out:.4f}" if modo == "NER" else ""))
+
+    return test_loss, acc_labels
+
 
 
 # NER y SA

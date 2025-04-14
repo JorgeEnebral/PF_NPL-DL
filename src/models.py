@@ -33,7 +33,8 @@ class NerSaModel(torch.nn.Module):
         
         self.fc_ner = nn.Linear(2 * hidden_size, self.output_dims["NER"]) if mode == "NERSA" else nn.Identity()
         self.fc_sa = nn.Linear(2 * hidden_size, self.output_dims["SA"]) if mode == "NERSA" else nn.Identity()
-        self.fc = nn.Linear(2 * hidden_size, self.output_dims[self.mode])
+        outdim = self.output_dims[self.mode] if self.mode != "NERSA" else 1
+        self.fc = nn.Linear(2 * hidden_size, outdim)
 
 
     def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:

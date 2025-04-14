@@ -61,7 +61,9 @@ def main() -> None:
     parameters_to_double(model)
 
     optimizer_ner = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)
-    loss_ner = torch.nn.CrossEntropyLoss()
+    # weights = compute_class_weights_ner(train_data).to(device)
+    # print(weights)
+    loss_ner = torch.nn.CrossEntropyLoss(reduction="mean", ignore_index=-1)
     
     optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)
     loss_sa = torch.nn.CrossEntropyLoss()
