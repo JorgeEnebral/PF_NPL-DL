@@ -6,298 +6,243 @@ from torch.utils.tensorboard import SummaryWriter
 
 # other libraries
 from typing import Tuple
-
 from src.utils import Accuracy
 
 
-# NER o SA
 @torch.enable_grad()
-def train_step(
-    modo: str,
-    model: torch.nn.Module,
-    train_data: DataLoader,
-    loss: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    writer: SummaryWriter,
-    epoch: int,
-    device: torch.device,
-) -> None:
-    """
-    This function trains the model.
-    """
+def train_step_sa(model, train_data, loss_fn, optimizer, writer, epoch, device):
     model.train()
     losses = []
-    acc = Accuracy(modo)
+    acc = Accuracy("SA")
 
-    for inputs, ner_targets, sa_targets, lengths in train_data:
-        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
-        #print(ner_targets)
-        # Forward pass
+    for inputs, _, sa_targets, lengths in train_data:
+        inputs, sa_targets = inputs.to(device), sa_targets.to(device)
         outputs, _ = model(inputs, lengths)
-        
-        # Calcular pérdida
-        if modo == "NER":
-            _, _, D = outputs.size()
-            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long()) # [batch_size, lenght]
-            acc.update(outputs, ner_targets)
-        else:
-            loss_ = loss(outputs.float(), sa_targets.long())  # [batch_size,]
-            acc.update(outputs, sa_targets)
-        
-        # Backward y optimización
+        loss_ = loss_fn(outputs.float(), sa_targets.long())
+
         optimizer.zero_grad()
         loss_.backward()
         optimizer.step()
-        
+
+        acc.update(outputs, sa_targets)
         losses.append(loss_.item())
 
-    # Compute accuracy and loss
-    acc_labels, acc_out = acc.compute()
-    
-    writer.add_scalar(f"train/loss_{modo}", np.mean(losses), epoch)
-    writer.add_scalar(f"train/accuracy_{modo}", acc_labels, epoch)
-    if modo == "NER":
-        writer.add_scalar(f"train/accuracy_{modo}_out", acc_out, epoch)
-    
-    print(f"Epoch {epoch}: Train Loss {modo} = {np.mean(losses):.4f} | Train Accuracy = {acc_labels:.4f}" +
-          (f" | Train Out Accuracy = {acc_out:.4f}" if modo == "NER" else ""))
+    acc_val, _ = acc.compute()
+    writer.add_scalar("train/loss_SA", np.mean(losses), epoch)
+    writer.add_scalar("train/accuracy_SA", acc_val, epoch)
+    print(f"Epoch {epoch}: Train Loss SA = {np.mean(losses):.4f} | Train Accuracy = {acc_val:.4f}")
 
 
-@torch.no_grad()
-def val_step(
-    modo: str,
-    model: torch.nn.Module,
-    val_data: DataLoader,
-    loss: torch.nn.Module,
-    writer: SummaryWriter,
-    epoch: int,
-    device: torch.device,
-) -> None:
-    """
-    This function validates the model.
-    """
-    model.eval()
-    losses = []
-    acc = Accuracy(modo)
-
-    for inputs, ner_targets, sa_targets, lengths in val_data:
-        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
-        
-        # Forward pass
-        outputs, _ = model(inputs, lengths)
-        
-        # Calcular pérdida
-        if modo == "NER":
-            _, _, D = outputs.size()
-            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long()) # [batch_size, lenght]
-            acc.update(outputs, ner_targets)
-        else:
-            loss_ = loss(outputs.float(), sa_targets.long())  # [batch_size,]
-            acc.update(outputs, sa_targets)
-        
-        losses.append(loss_.item())
-
-    # Compute accuracy and loss
-    acc_labels, acc_out = acc.compute()
-    
-    writer.add_scalar(f"val/loss_{modo}", np.mean(losses), epoch)
-    writer.add_scalar(f"val/accuracy_{modo}", acc_labels, epoch)
-    if modo == "NER":
-        writer.add_scalar(f"val/accuracy_{modo}_out", acc_out, epoch)
-
-    print(f"Epoch {epoch}: Validation Loss {modo} = {np.mean(losses):.4f} | Validation Accuracy = {acc_labels:.4f}" +
-          (f" | Validation Out Accuracy = {acc_out:.4f}" if modo == "NER" else ""))
-
-
-@torch.no_grad()
-def t_step(
-    modo: str,
-    model: torch.nn.Module,
-    test_data: DataLoader,
-    device: torch.device,
-) -> Tuple[float, float]:
-    model.eval()
-    losses = []
-    acc = Accuracy(modo)
-    loss = torch.nn.CrossEntropyLoss()
-
-    for inputs, ner_targets, sa_targets, lengths in test_data:
-        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
-        outputs, _ = model(inputs, lengths)
-
-        if modo == "NER":
-            _, _, D = outputs.size()
-            loss_ = loss(outputs.view(-1, D).float(), ner_targets.view(-1).long())
-            acc.update(outputs, ner_targets)
-        else:
-            loss_ = loss(outputs.float(), sa_targets.long())
-            acc.update(outputs, sa_targets)
-
-        losses.append(loss_.item())
-
-    acc_labels, acc_out = acc.compute()
-    test_loss = np.mean(losses)
-
-    print(f"Test Loss {modo} = {test_loss:.4f} | Test Accuracy = {acc_labels:.4f}" +
-          (f" | Test Out Accuracy = {acc_out:.4f}" if modo == "NER" else ""))
-
-    return test_loss, acc_labels
-
-
-
-# NER y SA
 @torch.enable_grad()
-def train_step_nersa(
-    model: torch.nn.Module,
-    train_data: DataLoader,
-    loss_ner: torch.nn.Module,
-    loss_sa: torch.nn.Module,
-    optimizer_ner: torch.optim.Optimizer,
-    optimizer_sa: torch.optim.Optimizer,
-    writer: SummaryWriter,
-    epoch: int,
-    device: torch.device,
-) -> None:
-    """
-    This function trains the model.
-    """
+def train_step_ner(model, train_data, loss_fn_ner1, loss_fn_ner2, optimizer, writer, epoch, device):
     model.train()
-    losses_ner = []
-    losses_sa = []
-    acc_ner = Accuracy("NER")
-    acc_sa = Accuracy("SA")
+    losses = []
+    acc = Accuracy("NER")
+    loss_ponderation = model.loss_ponderation.tolist()
+
+    for inputs, ner_targets, _, lengths in train_data:
+        inputs, ner_targets = inputs.to(device), ner_targets.to(device)
+        outputs, _ = model(inputs, lengths)
+        _, _, D = outputs.size()
+
+        mask = ner_targets == 0
+        loss1 = loss_fn_ner1(outputs[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
+        loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2
+
+        optimizer.zero_grad()
+        total_loss.backward()
+        optimizer.step()
+
+        acc.update(outputs, ner_targets)
+        losses.append(total_loss.item())
+
+    acc_val, acc_out = acc.compute()
+    writer.add_scalar("train/loss_NER", np.mean(losses), epoch)
+    writer.add_scalar("train/accuracy_NER", acc_val, epoch)
+    writer.add_scalar("train/accuracy_NER_out", acc_out, epoch)
+    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses):.4f} | Train Accuracy = {acc_val:.4f} | Out Accuracy = {acc_out:.4f}")
+
+
+@torch.enable_grad()
+def train_step_nersa(model, train_data, loss_fn_ner1, loss_fn_ner2, loss_fn_sa, opt_ner, opt_sa, writer, epoch, device):
+    model.train()
+    losses_ner, losses_sa = [], []
+    acc_ner, acc_sa = Accuracy("NER"), Accuracy("SA")
+    loss_ponderation = model.loss_ponderation.tolist()
 
     for inputs, ner_targets, sa_targets, lengths in train_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
-        
-        # Forward pass
-        outputs = model(inputs, lengths)
-        
-        # Calcular pérdidas
-        loss_ner_ = loss_ner(ner_targets.double(), outputs[0].double())
-        loss_sa_ = loss_sa(sa_targets.double(), outputs[1].double())
-        
-        # Update accuracy
-        acc_ner.update(outputs[0], ner_targets)
-        acc_sa.update(outputs[1], sa_targets)
-        
-        # Backward y optimización
-        optimizer_ner.zero_grad()
-        optimizer_sa.zero_grad()
+        out_ner, out_sa = model(inputs, lengths)
 
-        loss_ner_.backward()
-        loss_sa_.backward()
+        _, _, D = out_ner.size()
+        mask = ner_targets == 0
+        loss1 = loss_fn_ner1(out_ner[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
+        loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
 
-        optimizer_ner.step()
-        optimizer_sa.step()
-        
-        losses_ner.append(loss_ner_.item())
-        losses_sa.append(loss_sa_.item())
+        total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2 + loss_ponderation[2] * loss_sa
 
-    # Compute accuracy and loss for NER and SA
-    accuracy_ner = acc_ner.compute()
-    accuracy_sa = acc_sa.compute()
+        opt_ner.zero_grad()
+        opt_sa.zero_grad()
+        total_loss.backward()
+        opt_ner.step()
+        opt_sa.step()
 
-    writer.add_scalar("train/loss_ner", np.mean(losses_ner), epoch)
-    writer.add_scalar("train/loss_sa", np.mean(losses_sa), epoch)
-    writer.add_scalar("train/accuracy_ner", accuracy_ner, epoch)
-    writer.add_scalar("train/accuracy_sa", accuracy_sa, epoch)
+        acc_ner.update(out_ner, ner_targets)
+        acc_sa.update(out_sa, sa_targets)
+        losses_ner.append((0.5 * loss1 + 0.2 * loss2).item())
+        losses_sa.append(loss_sa.item())
 
-    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses_ner):.4f} | Train Accuracy NER = {accuracy_ner:.4f}")
-    print(f"Epoch {epoch}: Train Loss SA = {np.mean(losses_sa):.4f} | Train Accuracy SA = {accuracy_sa:.4f}")
+    acc_ner_val, acc_ner_out = acc_ner.compute()
+    acc_sa_val, _ = acc_sa.compute()
+    writer.add_scalar("train/loss_NER", np.mean(losses_ner), epoch)
+    writer.add_scalar("train/loss_SA", np.mean(losses_sa), epoch)
+    writer.add_scalar("train/accuracy_NER", acc_ner_val, epoch)
+    writer.add_scalar("train/accuracy_NER_out", acc_ner_out, epoch)
+    writer.add_scalar("train/accuracy_SA", acc_sa_val, epoch)
+    print(f"Epoch {epoch}: Train Loss NER = {np.mean(losses_ner):.4f} | Accuracy NER = {acc_ner_val:.4f} | Out = {acc_ner_out:.4f}")
+    print(f"Epoch {epoch}: Train Loss SA = {np.mean(losses_sa):.4f} | Accuracy SA = {acc_sa_val:.4f}")
+
 
 
 @torch.no_grad()
-def val_step_nersa(
-    model: torch.nn.Module,
-    val_data: DataLoader,
-    loss_ner: torch.nn.Module,
-    loss_sa: torch.nn.Module,
-    writer: SummaryWriter,
-    epoch: int,
-    device: torch.device,
-) -> None:
-    """
-    This function validates the model.
-    """
+def val_step_sa(model, val_data, loss_fn, writer, epoch, device):
     model.eval()
-    losses_ner = []
-    losses_sa = []
-    acc_ner = Accuracy("NER")
-    acc_sa = Accuracy("SA")
+    losses = []
+    acc = Accuracy("SA")
 
-    for inputs, ner_targets, sa_targets in val_data:
-        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
-        
-        # Forward pass
-        outputs = model(inputs)
-        
-        # Calcular pérdidas
-        loss_ner_ = loss_ner(ner_targets, outputs[0])
-        loss_sa_ = loss_sa(sa_targets, outputs[1])
+    for inputs, _, sa_targets, lengths in val_data:
+        inputs, sa_targets = inputs.to(device), sa_targets.to(device)
+        outputs, _ = model(inputs, lengths)
+        loss_ = loss_fn(outputs.float(), sa_targets.long())
 
-        # Update accuracy
-        acc_ner.update(outputs[0], ner_targets)
-        acc_sa.update(outputs[1], sa_targets)
+        acc.update(outputs, sa_targets)
+        losses.append(loss_.item())
 
-        losses_ner.append(loss_ner_.item())
-        losses_sa.append(loss_sa_.item())
-
-    # Compute accuracy and loss for NER and SA
-    accuracy_ner = acc_ner.compute()
-    accuracy_sa = acc_sa.compute()
-
-    writer.add_scalar("val/loss_ner", np.mean(losses_ner), epoch)
-    writer.add_scalar("val/loss_sa", np.mean(losses_sa), epoch)
-    writer.add_scalar("val/accuracy_ner", accuracy_ner, epoch)
-    writer.add_scalar("val/accuracy_sa", accuracy_sa, epoch)
-
-    print(f"Epoch {epoch}: Validation Loss NER = {np.mean(losses_ner):.4f} | Validation Accuracy NER = {accuracy_ner:.4f}")
-    print(f"Epoch {epoch}: Validation Loss SA = {np.mean(losses_sa):.4f} | Validation Accuracy SA = {accuracy_sa:.4f}")
+    acc_val, _ = acc.compute()
+    writer.add_scalar("val/loss_SA", np.mean(losses), epoch)
+    writer.add_scalar("val/accuracy_SA", acc_val, epoch)
+    print(f"Epoch {epoch}: Validation Loss SA = {np.mean(losses):.4f} | Accuracy = {acc_val:.4f}")
 
 
 @torch.no_grad()
-def t_step_nersa(
-    model: torch.nn.Module,
-    test_data: DataLoader,
-    device: torch.device,
-) -> Tuple[float, float]:
-    """
-    This function tests the model.
-    """
+def val_step_ner(model, val_data, loss_fn_ner1, loss_fn_ner2, writer, epoch, device):
     model.eval()
-    losses_ner = []
-    losses_sa = []
-    acc_ner = Accuracy("NER")
-    acc_sa = Accuracy("SA")
-    loss_ner = torch.nn.CrossEntropyLoss()
-    loss_sa = torch.nn.CrossEntropyLoss()
+    losses = []
+    acc = Accuracy("NER")
+    loss_ponderation = model.loss_ponderation.tolist()
 
-    for inputs, ner_targets, sa_targets in test_data:
+    for inputs, ner_targets, _, lengths in val_data:
+        inputs, ner_targets = inputs.to(device), ner_targets.to(device)
+        outputs, _ = model(inputs, lengths)
+        _, _, D = outputs.size()
+
+        mask = ner_targets == 0
+        loss1 = loss_fn_ner1(outputs[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
+        loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2
+
+        acc.update(outputs, ner_targets)
+        losses.append(total_loss.item())
+
+    acc_val, acc_out = acc.compute()
+    writer.add_scalar("val/loss_NER", np.mean(losses), epoch)
+    writer.add_scalar("val/accuracy_NER", acc_val, epoch)
+    writer.add_scalar("val/accuracy_NER_out", acc_out, epoch)
+    print(f"Epoch {epoch}: Validation Loss NER = {np.mean(losses):.4f} | Accuracy = {acc_val:.4f} | Out = {acc_out:.4f}")
+
+
+@torch.no_grad()
+def val_step_nersa(model, val_data, loss_fn_ner1, loss_fn_ner2, loss_fn_sa, writer, epoch, device):
+    model.eval()
+    losses_ner, losses_sa = [], []
+    acc_ner, acc_sa = Accuracy("NER"), Accuracy("SA")
+    loss_ponderation = model.loss_ponderation.tolist()
+
+    for inputs, ner_targets, sa_targets, lengths in val_data:
         inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
+        out_ner, out_sa = model(inputs, lengths)
+        _, _, D = out_ner.size()
         
-        # Forward pass
-        outputs = model(inputs)
-        
-        # Calcular pérdidas
-        loss_ner_ = loss_ner(ner_targets, outputs[0])
-        loss_sa_ = loss_sa(sa_targets, outputs[1])
+        mask = ner_targets == 0
+        loss1 = loss_fn_ner1(out_ner[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
+        loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
 
-        # Update accuracy
-        acc_ner.update(outputs[0], ner_targets)
-        acc_sa.update(outputs[1], sa_targets)
+        acc_ner.update(out_ner, ner_targets)
+        acc_sa.update(out_sa, sa_targets)
+        losses_ner.append((loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2).item())
+        losses_sa.append(loss_ponderation[2] * loss_sa.item())
 
-        losses_ner.append(loss_ner_.item())
-        losses_sa.append(loss_sa_.item())
-
-    # Compute accuracy and loss for NER and SA
-    accuracy_ner = acc_ner.compute()
-    accuracy_sa = acc_sa.compute()
-
-    test_ner = np.mean(losses_ner)
-    test_sa = np.mean(losses_sa)
-
-    print(f"Test Loss NER: {test_ner:.4f} | Test Accuracy NER: {accuracy_ner:.4f}")
-    print(f"Test Loss SA: {test_sa:.4f} | Test Accuracy SA: {accuracy_sa:.4f}")
+    acc_ner_val, acc_ner_out = acc_ner.compute()
+    acc_sa_val, _ = acc_sa.compute()
+    writer.add_scalar("val/loss_NER", np.mean(losses_ner), epoch)
+    writer.add_scalar("val/loss_SA", np.mean(losses_sa), epoch)
+    writer.add_scalar("val/accuracy_NER", acc_ner_val, epoch)
+    writer.add_scalar("val/accuracy_NER_out", acc_ner_out, epoch)
+    writer.add_scalar("val/accuracy_SA", acc_sa_val, epoch)
+    print(f"Epoch {epoch}: Validation Loss NER = {np.mean(losses_ner):.4f} | Accuracy = {acc_ner_val:.4f} | Out = {acc_ner_out:.4f}")
+    print(f"Epoch {epoch}: Validation Loss SA = {np.mean(losses_sa):.4f} | Accuracy SA = {acc_sa_val:.4f}")
     
-    return test_ner, test_sa
+    
+
+@torch.no_grad()
+def t_step_sa(model, test_data, loss_fn, device):
+    model.eval()
+    acc = Accuracy("SA")
+    losses = []
+    for inputs, _, sa_targets, lengths in test_data:
+        inputs, sa_targets = inputs.to(device), sa_targets.to(device)
+        outputs, _ = model(inputs, lengths)
+        loss_ = loss_fn(outputs.float(), sa_targets.long())
+        acc.update(outputs, sa_targets)
+        losses.append(loss_.item())
+    acc_val, _ = acc.compute()
+    print(f"[TEST] Loss SA = {np.mean(losses):.4f} | Accuracy = {acc_val:.4f}")
+
+
+@torch.no_grad()
+def t_step_ner(model, test_data, loss_fn_ner1, loss_fn_ner2, device):
+    model.eval()
+    acc = Accuracy("NER")
+    loss_ponderation = model.loss_ponderation.tolist()
+    losses = []
+    for inputs, ner_targets, _, lengths in test_data:
+        inputs, ner_targets = inputs.to(device), ner_targets.to(device)
+        outputs, _ = model(inputs, lengths)
+        _, _, D = outputs.size()
+        mask = ner_targets == 0
+        loss1 = loss_fn_ner1(outputs[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
+        loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2
+        acc.update(outputs, ner_targets)
+        losses.append(total_loss.item())
+    acc_val, acc_out = acc.compute()
+    print(f"[TEST] Loss NER = {np.mean(losses):.4f} | Accuracy = {acc_val:.4f} | Out Accuracy = {acc_out:.4f}")
+
+
+@torch.no_grad()
+def t_step_nersa(model, test_data, loss_fn_ner1, loss_fn_ner2, loss_fn_sa, device):
+    model.eval()
+    acc_ner, acc_sa = Accuracy("NER"), Accuracy("SA")
+    loss_ponderation = model.loss_ponderation.tolist()
+    losses_ner, losses_sa = [], []
+    for inputs, ner_targets, sa_targets, lengths in test_data:
+        inputs, ner_targets, sa_targets = inputs.to(device), ner_targets.to(device), sa_targets.to(device)
+        out_ner, out_sa = model(inputs, lengths)
+        _, _, D = out_ner.size()
+        
+        mask = ner_targets == 0
+        loss1 = loss_fn_ner1(out_ner[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
+        loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
+        
+        acc_ner.update(out_ner, ner_targets)
+        acc_sa.update(out_sa, sa_targets)
+        losses_ner.append((loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2).item())
+        losses_sa.append(loss_ponderation[2] * loss_sa.item())
+    acc_ner_val, acc_ner_out = acc_ner.compute()
+    acc_sa_val, _ = acc_sa.compute()
+    print(f"[TEST] Loss NER = {np.mean(losses_ner):.4f} | Accuracy = {acc_ner_val:.4f} | Out = {acc_ner_out:.4f}")
+    print(f"[TEST] Loss SA = {np.mean(losses_sa):.4f} | Accuracy = {acc_sa_val:.4f}")

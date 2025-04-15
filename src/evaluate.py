@@ -9,12 +9,11 @@ from typing import Final
 import re
 import os
 import json
-from shutil import rmtree
 
 # own modules
 from src.data import load_data, load_embeddings, map_sa_tags, map_ner_tags
 from src.utils import set_seed, load_model
-from src.train_functions import t_step, t_step_nersa
+from src.train_functions import t_step_sa, t_step_ner, t_step_nersa
 
 # static variables
 DATA_PATH: Final[str] = "data"
@@ -42,17 +41,20 @@ def create_temp_json(phrase: str) -> None:
 
 def delete_temp_json() -> None:
     """Elimina el archivo temporal después de evaluar."""
-    rmtree(DATA_PATH + "/" + TEMP_FILE)
+    temp_path = os.path.join(DATA_PATH, TEMP_FILE)
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
 
 
 def main() -> None:
     """
     This function is the main program.
     """
-    name = "glove_50d_SA_5_128_64_2_0.001_0.0"
+    name = "glove_50d_SA_10_64"
     
-    prueba_externa = False
-    phrase = "I hate you so much I would kill you"
+    prueba_externa = True
+    phrase = "I love chocolate"
+    
     # phrase_list = ["EU","rejects","German","call","to","boycott","British","lamb","."]
     # phrase = " ".join(phrase_list)
     
@@ -121,9 +123,11 @@ def main() -> None:
                                     num_workers=4)
 
         if modo == "NERSA":
-            test_ner, test_sa = t_step_nersa(model, test_data, device)
+            t_step_nersa(model, test_data, device)
+        elif modo == "NER":
+            t_step_ner(modo, model, test_data, device)
         else:
-            test = t_step(modo, model, test_data, device)
+            t_step_sa(modo, model, test_data, device)
         
 
 

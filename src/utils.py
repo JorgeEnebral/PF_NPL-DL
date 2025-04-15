@@ -51,20 +51,15 @@ class Accuracy:
 
         else:  # NER o NERSA
             predictions = logits.argmax(dim=2).type_as(labels)
-            print(logits.size())
-            print(labels.size())
-            print(predictions.size())
-            print(predictions)
-            mask_0 = labels == 0
-            mask = (labels != -1) & (labels != 0) # ignorar padding (0)
             
-            predictions == labels
-            (predictions == labels) & mask
-            self.correct += int(((predictions == labels) & mask).sum().item())
-            self.total += int(mask.sum().item())
+            mask_out = labels == 0
+            mask_ent = (labels != -1) & (labels != 0)
             
-            self.correct_out += int(((predictions == labels) & mask_0).sum().item())
-            self.total_out += int(mask_0.sum().item())
+            self.correct += int(((predictions == labels) & mask_ent).sum().item())
+            self.total += int(mask_ent.sum().item())
+            
+            self.correct_out += int(((predictions == labels) & mask_out).sum().item())
+            self.total_out += int(mask_out.sum().item())
             
         return None
 

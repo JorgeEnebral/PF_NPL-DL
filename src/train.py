@@ -16,7 +16,7 @@ from typing import Final
 # own modules
 from src.data import load_data, load_embeddings
 from src.models import NerSaModel
-from src.train_functions import train_step, val_step, t_step, train_step_nersa, val_step_nersa, t_step_nersa
+from src.train_functions import train_step_sa, val_step_sa, t_step_sa, train_step_ner, val_step_ner, t_step_ner, train_step_nersa, val_step_nersa, t_step_nersa
 from src.utils import set_seed, save_model, parameters_to_double
 
 # static variables
@@ -32,13 +32,17 @@ def main() -> None:
     This function is the main program for training.
     """
     # parametros
-    num_epochs = 5
-    hidden_size = 5
+    num_epochs = 10
+    hidden_size = 20
     hidden_layers = 1
-    lr = 1
-    batch_size = 128
+    lr_sa = 0.01
+    lr_ner = 1
+    w_dc_sa = 0.0005
+    w_dc_ner = 0.0004
+    batch_size = 64
     dropout = 0.0
     modo = "NER" # ["NER", "SA", "NERSA"]
+    loss_ponderation = torch.tensor([0.001, 0.999]) # [0.05, 0.6, 0.35]
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")
@@ -56,17 +60,15 @@ def main() -> None:
                                                 num_workers=4)
     
     # GENERACION DEL MODELO
-    model = NerSaModel(embedding_weights, hidden_size, hidden_layers, mode=modo).to(device)
+    model = NerSaModel(embedding_weights, hidden_size, hidden_layers, l_pond=loss_ponderation, mode=modo).to(device)
     model.lstm.flatten_parameters()  # Lo recomienda chat
     parameters_to_double(model)
-
-    optimizer_ner = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)
-    # weights = compute_class_weights_ner(train_data).to(device)
-    # print(weights)
-    loss_ner = torch.nn.CrossEntropyLoss(reduction="mean", ignore_index=-1)
     
-    optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0004)
-    loss_sa = torch.nn.CrossEntropyLoss()
+    optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr_sa, weight_decay=w_dc_sa)
+    optimizer_ner = torch.optim.Adam(model.parameters(), lr=lr_ner, weight_decay=w_dc_ner)
+    loss_ner_out = torch.nn.CrossEntropyLoss(ignore_index=-1)
+    loss_ner_ent = torch.nn.CrossEntropyLoss(ignore_index=-1)
+    loss_sa = torch.nn.CrossEntropyLoss() 
 
     # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.2)  NECESARIO?
     writer = SummaryWriter()
@@ -74,21 +76,25 @@ def main() -> None:
     print("ENTRENANDO")
     for epoch in tqdm(range(num_epochs)):
         if modo == "NERSA":
-            train_step_nersa(model, train_data, loss_ner, loss_sa, optimizer_ner, optimizer_sa, writer, epoch, device)
-            val_step_nersa(model, val_data, loss_ner, loss_sa, writer, epoch, device)
+            train_step_nersa(model, train_data, loss_ner_out, loss_ner_ent, loss_sa, optimizer_ner, optimizer_sa, writer, epoch, device)
+            val_step_nersa(model, val_data, loss_ner_out, loss_ner_ent, loss_sa, writer, epoch, device)
+        elif modo == "NER":
+            train_step_ner(model, train_data, loss_ner_out, loss_ner_ent, optimizer_ner, writer, epoch, device)
+            val_step_ner(model, val_data, loss_ner_out, loss_ner_ent, writer, epoch, device)
         else:
-            # Da igual el nombre de las variables loss_ner y optimizer_ner
-            train_step(modo, model, train_data, loss_ner, optimizer_ner, writer, epoch, device)
-            val_step(modo, model, val_data, loss_ner, writer, epoch, device)
-
+            train_step_sa(model, train_data, loss_sa, optimizer_sa, writer, epoch, device)
+            val_step_sa(model, val_data, loss_sa, writer, epoch, device)
+            
     print("ENTRENAMIENTO COMPLETADO\n")
 
     if modo == "NERSA":
-        t_step_nersa(model, test_data, device)
+        t_step_nersa(model, test_data, loss_ner_out, loss_ner_ent, loss_sa, device)
+    elif modo == "NER":
+        t_step_ner(model, test_data, loss_ner_out, loss_ner_ent, device)
     else:
-        t_step(modo, model, test_data, device)
+        t_step_sa(model, test_data, loss_sa, device)
     
-    txt2save: str = f"glove_50d_{modo}_{num_epochs}_{batch_size}_{hidden_size}_{hidden_layers}_{lr}_{dropout}"
+    txt2save: str = f"glove_50d_{modo}_{num_epochs}_{batch_size}"
     save_model(model, txt2save)
     
     print("\nMODELO GUARDADO")

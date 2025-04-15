@@ -10,7 +10,8 @@ class NerSaModel(torch.nn.Module):
                  hidden_size: int, 
                  hidden_layers: int, 
                  dropout: float = 0.0, 
-                 mode: str = "NERSA") -> None:
+                 mode: str = "NERSA",
+                 l_pond: torch.Tensor = torch.tensor([0.05, 0.6, 0.35])) -> None:
         """
         This method is the constructor of the class.
 
@@ -35,6 +36,8 @@ class NerSaModel(torch.nn.Module):
         self.fc_sa = nn.Linear(2 * hidden_size, self.output_dims["SA"]) if mode == "NERSA" else nn.Identity()
         outdim = self.output_dims[self.mode] if self.mode != "NERSA" else 1
         self.fc = nn.Linear(2 * hidden_size, outdim)
+        
+        self.register_buffer("loss_ponderation", l_pond)
 
 
     def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
