@@ -32,17 +32,17 @@ def main() -> None:
     This function is the main program for training.
     """
     # parametros
-    num_epochs = 10
-    hidden_size = 20
+    num_epochs = 100
+    hidden_size = 128
     hidden_layers = 1
-    lr_sa = 0.01
-    lr_ner = 1
-    w_dc_sa = 0.0005
-    w_dc_ner = 0.0004
+    lr_sa = 0.001
+    lr_ner = 0.001
+    w_dc_sa = 0.001
+    w_dc_ner = 0.005
     batch_size = 64
     dropout = 0.0
-    modo = "NER" # ["NER", "SA", "NERSA"]
-    loss_ponderation = torch.tensor([0.001, 0.999]) # [0.05, 0.6, 0.35]
+    modo = "NERSA" # ["NER", "SA", "NERSA"]
+    loss_ponderation = torch.tensor([0.1, 0.5, 0.4]) # [0.1, 0.9]
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")

@@ -50,13 +50,13 @@ def main() -> None:
     """
     This function is the main program.
     """
-    name = "glove_50d_SA_10_64"
+    name = "glove_50d_NERSA_15_64"
     
     prueba_externa = True
-    phrase = "I love chocolate"
+    # phrase = "I love water , I thank to God"
     
-    # phrase_list = ["EU","rejects","German","call","to","boycott","British","lamb","."]
-    # phrase = " ".join(phrase_list)
+    phrase_list = ["EU","rejects","German","call","to","boycott","British","lamb","."]
+    phrase = " ".join(phrase_list)
     
     w2v_model = load_embeddings(EMBEDINGS_PATH)
     model: RecursiveScriptModule = load_model(f"{name}").to(device)
@@ -88,25 +88,23 @@ def main() -> None:
             elif modo == "NER":
                 probs = F.softmax(out1, dim=-1)
                 preds = probs.argmax(dim=-1).squeeze(0).tolist()
-                tags = map_ner_tags(preds)
                 print(f"\nFrase con etiquetas NER:")
-                for tok, tag in zip(phrase.split(), tags):
-                    print(f"{tok:10} → {tag}")
+                for tok, tag in zip(phrase.split(), preds):
+                    print(f"{tok:10} → {map_ner_tags(tag)}")
 
             else:  # NERSA
                 probs_sa = F.softmax(out2, dim=-1)
                 pred_sa = probs_sa.argmax(dim=-1).item()
-                tag_sa = map_sa_tags([pred_sa])[0]
+                tag_sa = map_sa_tags(pred_sa)
 
                 probs_ner = F.softmax(out1, dim=-1)
                 preds_ner = probs_ner.argmax(dim=-1).squeeze(0).tolist()
-                tags_ner = map_ner_tags(preds_ner)
 
                 print(f"\nFrase: \"{phrase}\"")
                 print(f"Sentimiento: {tag_sa}")
                 print("Etiquetas NER:")
-                for tok, tag in zip(phrase.split(), tags_ner):
-                    print(f"{tok:10} → {tag}")
+                for tok, tag in zip(phrase.split(), preds_ner):
+                    print(f"{tok:10} → {map_ner_tags(tag)}")
 
         # 4. Borrar archivo temporal
         delete_temp_json()
