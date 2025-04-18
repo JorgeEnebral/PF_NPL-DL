@@ -65,10 +65,10 @@ def main() -> None:
     name = "glove_50d_NERSA_30_128"
     
     prueba_externa = True
-    phrase = "John suffered from an awful fall to the ground" # input_input
+    # phrase = "John suffered from an awful fall to the ground" # input_prompt
 
-    # phrase_list = ["forwards","-","ioan","vladoiu",",","gheorghe","craioveanu",",","ionel","danciulescu",",","viorel","ion","."]
-    # phrase = " ".join(phrase_list)
+    phrase_list = ["china","says","taiwan","spoils","atmosphere","for","talks","."]
+    phrase = " ".join(phrase_list)
     
     match = re.search(r"glove_([0-9]+)d_([^_]+)_", name)
     emb_dim = match.group(1)
@@ -119,16 +119,16 @@ def main() -> None:
                 alert = False
                 if pred_sa == 0:
                     alert = True
-                    alert_prompt = "\nGenerate an alert for: "
+                alert_prompt = "\nGenerate an alert for: "
                     
                 print("Etiquetas NER:")
                 for tok, tag in zip(phrase.split(), preds_ner):
                     print(f"{tok:10} → {map_ner_tags(tag)}")
-                    if alert:
-                        alert_prompt += alert_creator(alert_prompt, tag, tok)
+                    # if alert:
+                    alert_prompt += alert_creator(alert_prompt, tag, tok)
 
-        if alert:
-            print(alert_prompt)
+        # if alert:
+        print(alert_prompt)
         # 4. Borrar archivo temporal
         delete_temp_json()
                 
