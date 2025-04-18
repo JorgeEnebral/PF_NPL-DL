@@ -50,7 +50,7 @@ def main() -> None:
     """
     This function is the main program.
     """
-    name = "glove_50d_NERSA_15_64"
+    name = "glove_50d_NERSA_10_64"
     
     prueba_externa = True
     # phrase = "I love water , I thank to God"
@@ -81,7 +81,7 @@ def main() -> None:
             if modo == "SA":
                 probs = F.softmax(out1, dim=-1)
                 pred = probs.argmax(dim=-1).item()
-                label = map_sa_tags([pred])[0]
+                label = map_sa_tags(pred)
                 print(f"\nFrase: \"{phrase}\"")
                 print(f"Sentimiento: {label}")
 
@@ -119,13 +119,17 @@ def main() -> None:
                                     shuffle=True, 
                                     drop_last=False, 
                                     num_workers=4)
+        
+        loss_ner_out = torch.nn.CrossEntropyLoss(ignore_index=-1)
+        loss_ner_ent = torch.nn.CrossEntropyLoss(ignore_index=-1)
+        loss_sa = torch.nn.CrossEntropyLoss() 
 
         if modo == "NERSA":
-            t_step_nersa(model, test_data, device)
+            t_step_nersa(model, test_data, loss_ner_out, loss_ner_ent, loss_ner_ent, device)
         elif modo == "NER":
-            t_step_ner(modo, model, test_data, device)
+            t_step_ner(model, test_data, loss_ner_out, loss_ner_ent, device)
         else:
-            t_step_sa(modo, model, test_data, device)
+            t_step_sa(model, test_data, loss_sa, device)
         
 
 
