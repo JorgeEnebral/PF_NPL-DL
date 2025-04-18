@@ -47,7 +47,10 @@ def train_step_ner(model, train_data, loss_fn_ner1, loss_fn_ner2, optimizer, wri
 
         mask = ner_targets == 0
         loss1 = loss_fn_ner1(outputs[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
-        loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        if ner_targets[~mask].sum() > 0:
+            loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        else:
+            loss2 = loss_fn_ner2(torch.tensor([0.0]), torch.tensor([0.0]))
         total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2
 
         optimizer.zero_grad()
@@ -78,7 +81,10 @@ def train_step_nersa(model, train_data, loss_fn_ner1, loss_fn_ner2, loss_fn_sa, 
         _, _, D = out_ner.size()
         mask = ner_targets == 0
         loss1 = loss_fn_ner1(out_ner[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
-        loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        if ner_targets[~mask].sum() > 0:
+            loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        else:
+            loss2 = loss_fn_ner2(torch.tensor([0.0]), torch.tensor([0.0]))
         loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
 
         total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2 + loss_ponderation[2] * loss_sa
@@ -140,7 +146,10 @@ def val_step_ner(model, val_data, loss_fn_ner1, loss_fn_ner2, writer, epoch, dev
 
         mask = ner_targets == 0
         loss1 = loss_fn_ner1(outputs[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
-        loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        if ner_targets[~mask].sum() > 0:
+            loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        else:
+            loss2 = loss_fn_ner2(torch.tensor([0.0]), torch.tensor([0.0]))
         total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2
 
         acc.update(outputs, ner_targets)
@@ -167,7 +176,10 @@ def val_step_nersa(model, val_data, loss_fn_ner1, loss_fn_ner2, loss_fn_sa, writ
         
         mask = ner_targets == 0
         loss1 = loss_fn_ner1(out_ner[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
-        loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        if ner_targets[~mask].sum() > 0:
+            loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        else:
+            loss2 = loss_fn_ner2(torch.tensor([0.0]), torch.tensor([0.0]))
         loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
 
         acc_ner.update(out_ner, ner_targets)
@@ -212,10 +224,15 @@ def t_step_ner(model, test_data, loss_fn_ner1, loss_fn_ner2, device):
         inputs, ner_targets = inputs.to(device), ner_targets.to(device)
         outputs, _ = model(inputs, lengths)
         _, _, D = outputs.size()
+        
         mask = ner_targets == 0
         loss1 = loss_fn_ner1(outputs[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
-        loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        if ner_targets[~mask].sum() > 0:
+            loss2 = loss_fn_ner2(outputs[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        else:
+            loss2 = loss_fn_ner2(torch.tensor([0.0]), torch.tensor([0.0]))
         total_loss = loss_ponderation[0] * loss1 + loss_ponderation[1] * loss2
+        
         acc.update(outputs, ner_targets)
         losses.append(total_loss.item())
     acc_val, acc_out = acc.compute()
@@ -235,7 +252,10 @@ def t_step_nersa(model, test_data, loss_fn_ner1, loss_fn_ner2, loss_fn_sa, devic
         
         mask = ner_targets == 0
         loss1 = loss_fn_ner1(out_ner[mask].view(-1, D).float(), ner_targets[mask].view(-1).long())
-        loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        if ner_targets[~mask].sum() > 0:
+            loss2 = loss_fn_ner2(out_ner[~mask].view(-1, D).float(), ner_targets[~mask].view(-1).long())
+        else:
+            loss2 = loss_fn_ner2(torch.tensor([0.0]), torch.tensor([0.0]))
         loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
         
         acc_ner.update(out_ner, ner_targets)

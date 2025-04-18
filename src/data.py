@@ -166,7 +166,7 @@ def map_ner_tags(ner_tag):
         7: "B-MISC",  # Inicio de Entidad Miscelánea
         8: "I-MISC"   # Continuación de Entidad Miscelánea
     }
-    return [ner_map[tag] for tag in ner_tag]
+    return ner_map[ner_tag]
 
 
 def map_sa_tags(sa_tag):
@@ -176,7 +176,7 @@ def map_sa_tags(sa_tag):
         1: "Neutral",
         2: "Positive", 
     }
-    return [sa_map[tag] for tag in sa_tag]   
+    return sa_map[sa_tag]
 
 
 def word2idx(embedding_model, tweet: List[str], ner: List[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -226,7 +226,6 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
     labels_sa = []
 
     for text, label_ner, label_sa in batch:
-        # print(text, label_ner, label_sa); print()a
         indexes, lab_ner = word2idx(w2v_model, text, label_ner)
         if len(indexes) > 0:
             indexes_txt.append(indexes)
