@@ -9,9 +9,9 @@ class NerSaModel(torch.nn.Module):
     def __init__(self, embedding_weights: torch.Tensor, 
                  hidden_size: int, 
                  hidden_layers: int, 
+                 l_pond: torch.Tensor,
                  dropout: float = 0.0, 
-                 mode: str = "NERSA",
-                 l_pond: torch.Tensor = torch.tensor([0.05, 0.6, 0.35])) -> None:
+                 mode: str = "NERSA",) -> None:
         """
         This method is the constructor of the class.
 
@@ -28,14 +28,14 @@ class NerSaModel(torch.nn.Module):
         _, embedding_dim = embedding_weights.shape                                  
         self.embedding = nn.Embedding.from_pretrained(embedding_weights, freeze=True, padding_idx=0)
 
-        self.lstm = nn.LSTM(embedding_dim, hidden_size=hidden_size, num_layers=hidden_layers, bidirectional=True, batch_first=True)
+        self.lstm = nn.LSTM(embedding_dim, hidden_size=hidden_size, num_layers=hidden_layers, bidirectional=False, batch_first=True)
 
         self.dropout = nn.Dropout(dropout)
         
-        self.fc_ner = nn.Linear(2 * hidden_size, self.output_dims["NER"]) if mode == "NERSA" else nn.Identity()
-        self.fc_sa = nn.Linear(2 * hidden_size, self.output_dims["SA"]) if mode == "NERSA" else nn.Identity()
+        self.fc_ner = nn.Linear(hidden_size, self.output_dims["NER"]) if mode == "NERSA" else nn.Identity()
+        self.fc_sa = nn.Linear(hidden_size, self.output_dims["SA"]) if mode == "NERSA" else nn.Identity()
         outdim = self.output_dims[self.mode] if self.mode != "NERSA" else 1
-        self.fc = nn.Linear(2 * hidden_size, outdim)
+        self.fc = nn.Linear(hidden_size, outdim)
         
         self.register_buffer("loss_ponderation", l_pond)
 
@@ -59,16 +59,16 @@ class NerSaModel(torch.nn.Module):
 
         packed_output, (hidden, _) = self.lstm(packed)
         outputs, _ = nn.utils.rnn.pad_packed_sequence(packed_output, batch_first=True)
-        hiddens_concat = torch.cat((hidden[-1], hidden[-2]), dim=-1)
+        hiddens_concat = hidden[-1]
 
         if self.mode == "NER":
-            output_ner = self.fc(outputs)
+            output_ner = self.fc(self.dropout(outputs))
             return output_ner, None
         elif self.mode == "SA":
             output_sa = self.fc(hiddens_concat)
             return output_sa, None
         elif self.mode == "NERSA":
-            output_ner = self.fc_ner(outputs)
+            output_ner = self.fc_ner(self.dropout(outputs))
             output_sa = self.fc_sa(hiddens_concat)
             return output_ner, output_sa
         return None, None

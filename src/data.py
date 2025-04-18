@@ -91,9 +91,17 @@ def download_data(path) -> None:
     """"""
     def process_dataset(sentiment_analyzer, dataset, part):
         """"""        
-        data_tokens = [[token.replace('"', '').replace("'", "") for token in sent["tokens"] 
-                        if token.replace('"', '').replace("'", "")] for sent in dataset[part]]
-        data_ner_tags= [sent["ner_tags"] for sent in dataset[part]]
+        data_tokens, data_ner_tags = [], []
+        for sent in dataset[part]:
+            clean_tokens = []
+            clean_tags = []
+            for token, tag in zip(sent["tokens"], sent["ner_tags"]):
+                clean_token = token.replace('"', '').replace("'", "").lower()
+                if clean_token:  # solo añadimos si no es vacío
+                    clean_tokens.append(clean_token)
+                    clean_tags.append(tag)
+            data_tokens.append(clean_tokens)
+            data_ner_tags.append(clean_tags)
         data_sa = [int(sentiment_analyzer(" ".join(sent))[0]["label"][-1]) for sent in data_tokens]
         
         df = pd.DataFrame({
@@ -116,11 +124,11 @@ def download_data(path) -> None:
     return None
     
 
-def load_embeddings(path):
+def load_embeddings(path, emb_dim):
     glove_zip_url = 'https://nlp.stanford.edu/data/glove.twitter.27B.zip'
     glove_zip_path = os.path.join(path, 'glove.twitter.27B.zip')
-    glove_txt_file = os.path.join(path, 'glove.twitter.27B.50d.txt')
-    word2vec_output_file = os.path.join(path, 'glove.twitter.27B.50d.word2vec.txt')
+    glove_txt_file = os.path.join(path, f'glove.twitter.27B.{str(emb_dim)}d.txt')
+    word2vec_output_file = os.path.join(path, f'glove.twitter.27B.{str(emb_dim)}d.word2vec.txt')
 
     # Crear directorio si no existe
     if not os.path.exists(path):

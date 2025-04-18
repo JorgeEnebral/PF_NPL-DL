@@ -45,24 +45,37 @@ def delete_temp_json() -> None:
     if os.path.exists(temp_path):
         os.remove(temp_path)
 
+def alert_creator(alert_promt, tag, tok):
+    if tag in [1,2]:
+        alert_promt += f"{tok} as a person entity, "
+    elif tag in [3,4]:
+        alert_promt += f"{tok} as a organization entity, "
+    elif tag in [5,6]:
+        alert_promt += f"{tok} as a ubication entity, "
+    elif tag in [7,8]:
+        alert_promt += f"{tok} as a miscellaneous entity, "
+    else:
+        alert_promt += ""
+    return alert_promt
 
 def main() -> None:
     """
     This function is the main program.
     """
-    name = "glove_50d_NERSA_10_64"
+    name = "glove_50d_NERSA_30_128"
     
     prueba_externa = True
-    # phrase = "I love water , I thank to God"
+    phrase = "John suffered from an awful fall to the ground" # input_input
+
+    # phrase_list = ["forwards","-","ioan","vladoiu",",","gheorghe","craioveanu",",","ionel","danciulescu",",","viorel","ion","."]
+    # phrase = " ".join(phrase_list)
     
-    phrase_list = ["EU","rejects","German","call","to","boycott","British","lamb","."]
-    phrase = " ".join(phrase_list)
+    match = re.search(r"glove_([0-9]+)d_([^_]+)_", name)
+    emb_dim = match.group(1)
+    modo = match.group(2)
     
-    w2v_model = load_embeddings(EMBEDINGS_PATH)
+    w2v_model = load_embeddings(EMBEDINGS_PATH, int(emb_dim))
     model: RecursiveScriptModule = load_model(f"{name}").to(device)
-    
-    match = re.search(r"glove_50d_([^_]+)_", name)
-    modo = match.group(1)
     
     if prueba_externa:
         create_temp_json(phrase)
@@ -102,16 +115,25 @@ def main() -> None:
 
                 print(f"\nFrase: \"{phrase}\"")
                 print(f"Sentimiento: {tag_sa}")
+                
+                alert = False
+                if pred_sa == 0:
+                    alert = True
+                    alert_prompt = "\nGenerate an alert for: "
+                    
                 print("Etiquetas NER:")
                 for tok, tag in zip(phrase.split(), preds_ner):
                     print(f"{tok:10} → {map_ner_tags(tag)}")
+                    if alert:
+                        alert_prompt += alert_creator(alert_prompt, tag, tok)
 
+        if alert:
+            print(alert_prompt)
         # 4. Borrar archivo temporal
         delete_temp_json()
                 
     else:
         test_data: DataLoader
-        w2v_model = load_embeddings(EMBEDINGS_PATH)
 
         _, _, test_data = load_data(w2v_model = w2v_model,
                                     save_path=DATA_PATH, 
@@ -123,7 +145,7 @@ def main() -> None:
         loss_ner_out = torch.nn.CrossEntropyLoss(ignore_index=-1)
         loss_ner_ent = torch.nn.CrossEntropyLoss(ignore_index=-1)
         loss_sa = torch.nn.CrossEntropyLoss() 
-
+    
         if modo == "NERSA":
             t_step_nersa(model, test_data, loss_ner_out, loss_ner_ent, loss_ner_ent, device)
         elif modo == "NER":

@@ -22,6 +22,7 @@ from src.utils import set_seed, save_model, parameters_to_double
 # static variables
 DATA_PATH: Final[str] = "data"
 EMBEDINGS_PATH: Final[str] = "embeddings"
+TOKENIZERS_PARALLELISM = False
 
 # set device and seed
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -32,21 +33,22 @@ def main() -> None:
     This function is the main program for training.
     """
     # parametros
-    num_epochs = 10
+    num_epochs = 30
     hidden_size = 32
     hidden_layers = 1
     lr_sa = 0.001
     lr_ner = 0.001
     w_dc_sa = 0.001
-    w_dc_ner = 0.005
-    batch_size = 64
-    dropout = 0.0
+    w_dc_ner = 0.001
+    batch_size = 128
+    dropout = 0.2
     modo = "NERSA" # ["NER", "SA", "NERSA"]
-    loss_ponderation = torch.tensor([0.1, 0.5, 0.4]) # [0.1, 0.9]
+    loss_ponderation = torch.tensor([0.4, 0.4, 0.2]) # [0.1, 0.9]
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")
-    w2v_model = load_embeddings(EMBEDINGS_PATH)
+    emb_dim = 50 # [25, 50, 100, 200]
+    w2v_model = load_embeddings(EMBEDINGS_PATH, emb_dim)
     embedding_weights = torch.tensor(w2v_model.vectors)
     
     padding_vector = torch.zeros((1, embedding_weights.shape[1]))
@@ -60,7 +62,7 @@ def main() -> None:
                                                 num_workers=4)
     
     # GENERACION DEL MODELO
-    model = NerSaModel(embedding_weights, hidden_size, hidden_layers, l_pond=loss_ponderation, mode=modo).to(device)
+    model = NerSaModel(embedding_weights, hidden_size, hidden_layers, l_pond=loss_ponderation, dropout=dropout, mode=modo).to(device)
     model.lstm.flatten_parameters()  # Lo recomienda chat
     parameters_to_double(model)
     
@@ -94,7 +96,7 @@ def main() -> None:
     else:
         t_step_sa(model, test_data, loss_sa, device)
     
-    txt2save: str = f"glove_50d_{modo}_{num_epochs}_{batch_size}"
+    txt2save: str = f"glove_{emb_dim}d_{modo}_{num_epochs}_{batch_size}"
     save_model(model, txt2save)
     
     print("\nMODELO GUARDADO")
