@@ -28,7 +28,7 @@ def main() -> None:
     """
     This function is the main program.
     """
-    name = "glove_50d_NERSA_30_128"  # Nombre del modelo que se va a ejecutar, tiene que ser de este formato, no otro
+    name = "glove_50d_NERSA_20_128"  # Nombre del modelo que se va a ejecutar, tiene que ser de este formato, no otro
     
     prueba_externa = True
 
