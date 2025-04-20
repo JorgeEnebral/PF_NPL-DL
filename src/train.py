@@ -65,6 +65,13 @@ def weights(train_path="data/train.json"):
     # normalizar (suma 1)
     weights_ner = weights_ner / weights_ner.sum()
     weights_sa = weights_sa / weights_sa.sum()
+
+    weights_ner = torch.tensor([0.05, 
+                                0.2, 0.05, 
+                                0.2, 0.05, 
+                                0.2, 0.05,
+                                0.15, 0.05])
+    weights_sa = torch.tensor([0.275, 0.05, 0.675])
     
     return weights_ner, weights_sa
 

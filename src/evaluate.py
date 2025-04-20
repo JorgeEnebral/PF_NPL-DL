@@ -15,6 +15,7 @@ import json
 from src.data import load_data, load_embeddings, map_sa_tags, map_ner_tags
 from src.utils import set_seed, load_model
 from src.train_functions import t_step_sa, t_step_ner, t_step_nersa
+from src.deepSeekModel import generate_text
 
 # static variables
 DATA_PATH: Final[str] = "data"
@@ -66,7 +67,7 @@ def main() -> None:
     name = "glove_50d_NERSA_30_128"  # Nombre del modelo que se va a ejecutar, tiene que ser de este formato, no otro
     
     prueba_externa = True
-    alert = False
+    alert = True
     # phrase = "John suffered from an awful fall to the ground" # input_prompt
 
     phrase_list = ["singapore","stands","to","benefit","more","than","most","from","continued","global","trade","liberalisation","as","trade","is","the","engine","of","its","growth",",","accounting","for","nearly","three","times","its","gross","domestic","product","."]
@@ -131,23 +132,28 @@ def main() -> None:
                         alert_prompt = alert_creator(alert_prompt, tag, tok)
 
         if alert:
-            name_generator = "google/flan-t5-small"
-            model_generator = AutoModelForSeq2SeqLM.from_pretrained(name_generator)
-            tokenizer_generator = AutoTokenizer.from_pretrained(name_generator)
+            # name_generator = "google/flan-t5-small"
+            # model_generator = AutoModelForSeq2SeqLM.from_pretrained(name_generator)
+            # tokenizer_generator = AutoTokenizer.from_pretrained(name_generator)
             
-            inputs = tokenizer_generator.encode(alert_prompt, return_tensors="pt")
-            outputs = model_generator.generate(
-                                            inputs,
-                                            max_length=100,
-                                            num_return_sequences=1,
-                                            no_repeat_ngram_size=2,
-                                            temperature=0.7,
-                                            do_sample=True  # Habilita el muestreo aleatorio
-                                        )
-            texto_generado = tokenizer_generator.decode(outputs[0], skip_special_tokens=True)
-            
+            # inputs = tokenizer_generator.encode(alert_prompt, return_tensors="pt")
+            # outputs = model_generator.generate(
+            #                                 inputs,
+            #                                 max_length=100,
+            #                                 num_return_sequences=1,
+            #                                 no_repeat_ngram_size=2,
+            #                                 temperature=0.7,
+            #                                 do_sample=True  # Habilita el muestreo aleatorio
+            #                             )
+            # texto_generado = tokenizer_generator.decode(outputs[0], skip_special_tokens=True)
+
+            texto_generado = generate_text(alert_prompt)
+
             print("\nPrompt: ", alert_prompt)
             print("Respuesta del modelo preentrenado: ", texto_generado)
+            
+            print("\nPrompt: \n", alert_prompt)
+            print("Respuesta del modelo preentrenado: \n", texto_generado)
             
         # 4. Borrar archivo temporal
         delete_temp_json()
