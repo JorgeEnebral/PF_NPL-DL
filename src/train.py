@@ -104,7 +104,7 @@ def main() -> None:
     
     # GENERACION DEL MODELO
     model = NerSaModel(embedding_weights, hidden_size, hidden_layers, l_pond=loss_ponderation, dropout=dropout, mode=modo).to(device)
-    model.lstm.flatten_parameters()  # Lo recomienda chat
+    model.lstm.flatten_parameters() 
     parameters_to_double(model)
     
     optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr_sa, weight_decay=w_dc_sa)
@@ -113,7 +113,6 @@ def main() -> None:
     loss_ner = torch.nn.CrossEntropyLoss(ignore_index=-1, weight=weights_ner.to(device))
     loss_sa = torch.nn.CrossEntropyLoss(weight=weights_sa.to(device)) 
 
-    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.2)  NECESARIO?
     writer = SummaryWriter()
     
     print("ENTRENANDO")

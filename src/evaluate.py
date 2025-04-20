@@ -65,6 +65,7 @@ def main() -> None:
     name = "glove_50d_NERSA_30_128"  # Nombre del modelo que se va a ejecutar, tiene que ser de este formato, no otro
     
     prueba_externa = True
+    alert = False
     # phrase = "John suffered from an awful fall to the ground" # input_prompt
 
     phrase_list = ["it","all","culminated","in","the","fact","that","i","now","have","lots","of","great",",","great","friends","in","ireland","."]
@@ -116,7 +117,6 @@ def main() -> None:
                 print(f"\nFrase: \"{phrase}\"")
                 print(f"Sentimiento: {tag_sa}")
                 
-                alert = False
                 if pred_sa == 0:
                     alert = True
                     alert_prompt = "\nGenerate an alert for: "
