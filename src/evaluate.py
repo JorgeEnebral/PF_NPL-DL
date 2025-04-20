@@ -12,7 +12,7 @@ import re
 from src.data import load_data, load_embeddings, map_sa_tags, map_ner_tags
 from src.utils import set_seed, load_model, create_temp_json, delete_temp_json, alert_creator
 from src.train_functions import t_step_sa, t_step_ner, t_step_nersa
-from src.deepseek import generate_text
+from src.deepseekmodel import generate_response
 
 # static variables
 DATA_PATH: Final[str] = "data"
@@ -24,6 +24,17 @@ device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 set_seed(42)
 
 
+def limpiar_y_extraer_mensaje(texto: str) -> str:
+    # 1. Eliminar todo el contenido entre <think> y </think>
+    texto_sin_think = re.sub(r"<think>.*?</think>", "", texto, flags=re.DOTALL)
+
+    # 2. Buscar todos los mensajes entre --- y ---
+    matches = re.findall(r"---\s*(.*?)\s*---", texto_sin_think, flags=re.DOTALL)
+
+    # 3. Devolver el último mensaje si existe
+    return matches[-1] if matches else ""
+
+
 def main() -> None:
     """
     This function is the main program.
@@ -32,11 +43,7 @@ def main() -> None:
     
     prueba_externa = True
 
-    # phrase = "John suffered from an awful fall to the ground" # input_prompt
-    # phrase = " ".join(phrase)
-    
-    phrase = ["but","china","saw","their","luck","desert","them","in","the","second","match","of","the","group",",","crashing","to","a","surprise","2-0","defeat","to","newcomers","uzbekistan","."]
-
+    phrase = ["brazil", "cruised", "through", "the", "group", "stage", "but", "were", "stunned", "by", "belgium", "in", "a", "thrilling", "3-2", "quarterfinal", "."]
     alert = False
     match = re.search(r"glove_([0-9]+)d_([^_]+)_", name)
     emb_dim = match.group(1)
@@ -89,21 +96,28 @@ def main() -> None:
                 
                 if pred_sa == 0:
                     alert = True
-                    alert_prompt = "Generate an alert for: "
+                    alert_prompt = "Generate an alert (the tweet speaks bad of these entities, JUST THE ALERT, DO NOT MAKE REFERENCE TO THE USER NOR THE AI ASSISTANT) for: "
                 elif pred_sa == 2:
                     alert = True
-                    alert_prompt = "Generate a congratulatory message for: "
+                    alert_prompt = "Generate a congratulatory message (the tweet speaks highly of these entities. I JUST WANT YOU TO MENTION THAT THEY HAVE BEEN REFERENCED POSITIVELY) for: "
+                else:
+                    alert = True
+                    alert_prompt = "Generate a message with the following entities (they have been mentioned in a tweet with neutral SA, DO NOT CONGRATULATE): "
                 print("Etiquetas NER:")
                 for tok, tag in zip(phrase_clean, preds_ner):
                     print(f"{tok:10} → {map_ner_tags(tag)}")
                     if alert:
                         alert_prompt = alert_creator(alert_prompt, tag, tok)
 
+                alert_prompt += ". I want you to give the alert/congratulation/message between 3 symbols: --- message --- . DO NOT USE EMOJIS"
+
         if alert:
-            # texto_generado = generate_text(alert_prompt, device)
-            texto_generado = ""
-            print("\nPrompt: ", alert_prompt)
-            print("Respuesta del modelo preentrenado: ", texto_generado)
+            texto_generado = generate_response(alert_prompt)
+            # texto_generado = ""
+            print("\PROMPT: ------------------------ \n", alert_prompt)
+
+            alert = limpiar_y_extraer_mensaje(texto_generado)
+            print("\nRESPUESTA DEL MODELO PREENTRENADO: ------------------------ \n", alert)
             
         # 4. Borrar archivo temporal
         delete_temp_json(DATA_PATH, TEMP_FILE)
