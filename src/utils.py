@@ -30,9 +30,6 @@ class Accuracy:
         
         self.correct = 0
         self.total = 0
-        
-        self.correct_out = 0
-        self.total_out = 0
 
     def update(self, logits: torch.Tensor, labels: torch.Tensor) -> None:
         """
@@ -52,27 +49,17 @@ class Accuracy:
         else:  # NER o NERSA
             predictions = logits.argmax(dim=2).type_as(labels)
             
-            mask_out = labels == 0
-            mask_ent = (labels != -1) & (labels != 0)
-            
-            self.correct += int(((predictions == labels) & mask_ent).sum().item())
-            self.total += int(mask_ent.sum().item())
-            
-            self.correct_out += int(((predictions == labels) & mask_out).sum().item())
-            self.total_out += int(mask_out.sum().item())
+            mask = labels != -1
+            self.correct += int((predictions[mask] == labels[mask]).sum().item())
+            self.total += int(mask.sum().item())
             
         return None
 
-    def compute(self) -> Tuple[float, Optional[float]]:
+    def compute(self) -> float:
         """
         Returns the accuracy value.
         """
-        if self.mode == "SA":
-            return self.correct / self.total if self.total > 0 else 0.0, None
-        else:
-            labels = self.correct / self.total if self.total > 0 else 0.0
-            out = self.correct_out / self.total_out if self.total_out > 0 else 0.0
-            return labels, out
+        return self.correct / self.total if self.total > 0 else 0.0
 
 
 @torch.no_grad()

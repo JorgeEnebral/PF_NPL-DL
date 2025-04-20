@@ -11,7 +11,7 @@ class NerSaModel(torch.nn.Module):
                  hidden_layers: int, 
                  l_pond: torch.Tensor,
                  dropout: float = 0.0, 
-                 mode: str = "NERSA",) -> None:
+                 mode: str = "NERSA") -> None:
         """
         This method is the constructor of the class.
 

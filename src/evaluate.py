@@ -62,12 +62,12 @@ def main() -> None:
     """
     This function is the main program.
     """
-    name = "glove_50d_NERSA_30_128"
+    name = "glove_50d_NERSA_30_128"  # Nombre del modelo que se va a ejecutar, tiene que ser de este formato, no otro
     
     prueba_externa = True
     # phrase = "John suffered from an awful fall to the ground" # input_prompt
 
-    phrase_list = ["china","says","taiwan","spoils","atmosphere","for","talks","."]
+    phrase_list = ["it","all","culminated","in","the","fact","that","i","now","have","lots","of","great",",","great","friends","in","ireland","."]
     phrase = " ".join(phrase_list)
     
     match = re.search(r"glove_([0-9]+)d_([^_]+)_", name)
@@ -120,12 +120,14 @@ def main() -> None:
                 if pred_sa == 0:
                     alert = True
                     alert_prompt = "\nGenerate an alert for: "
-                    
+                elif pred_sa == 2:
+                    alert = True
+                    alert_prompt = "\nGenerate a congratulatory message for: "
                 print("Etiquetas NER:")
                 for tok, tag in zip(phrase.split(), preds_ner):
                     print(f"{tok:10} → {map_ner_tags(tag)}")
                     if alert:
-                        alert_prompt += alert_creator(alert_prompt, tag, tok)
+                        alert_prompt = alert_creator(alert_prompt, tag, tok)
 
         if alert:
             print(alert_prompt)
@@ -142,14 +144,13 @@ def main() -> None:
                                     drop_last=False, 
                                     num_workers=4)
         
-        loss_ner_out = torch.nn.CrossEntropyLoss(ignore_index=-1)
-        loss_ner_ent = torch.nn.CrossEntropyLoss(ignore_index=-1)
+        loss_ner = torch.nn.CrossEntropyLoss(ignore_index=-1)
         loss_sa = torch.nn.CrossEntropyLoss() 
     
         if modo == "NERSA":
-            t_step_nersa(model, test_data, loss_ner_out, loss_ner_ent, loss_ner_ent, device)
+            t_step_nersa(model, test_data, loss_ner, loss_sa, device)
         elif modo == "NER":
-            t_step_ner(model, test_data, loss_ner_out, loss_ner_ent, device)
+            t_step_ner(model, test_data, loss_ner, device)
         else:
             t_step_sa(model, test_data, loss_sa, device)
         
