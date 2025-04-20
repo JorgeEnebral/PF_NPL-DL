@@ -100,8 +100,8 @@ def main() -> None:
                         alert_prompt = alert_creator(alert_prompt, tag, tok)
 
         if alert:
-            texto_generado = generate_text(alert_prompt, device)
-            
+            # texto_generado = generate_text(alert_prompt, device)
+            texto_generado = ""
             print("\nPrompt: ", alert_prompt)
             print("Respuesta del modelo preentrenado: ", texto_generado)
             

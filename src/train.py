@@ -34,11 +34,11 @@ def main() -> None:
     This function is the main program for training.
     """
     # parametros
-    num_epochs = 30
+    num_epochs = 20
     hidden_size = 32
     hidden_layers = 1
     lr_sa = 0.001
-    lr_ner = 0.0
+    lr_ner = 0.001
     w_dc_sa = 0.0
     w_dc_ner = 0.0
     batch_size = 128
