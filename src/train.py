@@ -27,7 +27,9 @@ from src.train_functions import (
     val_step_nersa,
     t_step_nersa,
 )
-from src.utils import set_seed, save_model, parameters_to_double
+from src.utils import (set_seed,
+                       save_model,
+                       parameters_to_double)
 
 # static variables
 DATA_PATH: Final[str] = "data"
@@ -35,7 +37,8 @@ EMBEDINGS_PATH: Final[str] = "embeddings"
 TOKENIZERS_PARALLELISM = False
 
 # set device and seed
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+device = torch.device("cuda") if torch.cuda.is_available() \
+                            else torch.device("cpu")
 set_seed(42)
 
 
@@ -63,7 +66,9 @@ def main() -> None:
     embedding_weights = torch.tensor(w2v_model.vectors)
 
     padding_vector = torch.zeros((1, embedding_weights.shape[1]))
-    embedding_weights = torch.cat((padding_vector, embedding_weights), dim=0)
+    embedding_weights = torch.cat(
+                                (padding_vector, embedding_weights),
+                                dim=0)
 
     train_data, val_data, test_data = load_data(
         w2v_model=w2v_model,
@@ -86,14 +91,26 @@ def main() -> None:
     model.lstm.flatten_parameters()  # Lo recomienda chat
     parameters_to_double(model)
 
-    optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr_sa, weight_decay=w_dc_sa)
+    optimizer_sa = torch.optim.Adam(model.parameters(),
+                                    lr=lr_sa,
+                                    weight_decay=w_dc_sa)
     optimizer_ner = torch.optim.Adam(
         model.parameters(), lr=lr_ner, weight_decay=w_dc_ner
     )
 
-    weights_ner = torch.tensor([0.01, 0.22, 0.07, 0.22, 0.07, 0.25, 0.03, 0.1, 0.03])
+    weights_ner = torch.tensor([0.01,
+                                0.22,
+                                0.07,
+                                0.22,
+                                0.07,
+                                0.25,
+                                0.03,
+                                0.1,
+                                0.03])
     weights_sa = torch.tensor([0.23, 0.1, 0.67])
-    loss_ner = torch.nn.CrossEntropyLoss(ignore_index=-1, weight=weights_ner.to(device))
+    loss_ner = torch.nn.CrossEntropyLoss(ignore_index=-1,
+                                         weight=weights_ner.to(device)
+                                         )
     loss_sa = torch.nn.CrossEntropyLoss(weight=weights_sa.to(device))
 
     writer = SummaryWriter()
@@ -112,26 +129,64 @@ def main() -> None:
                 epoch,
                 device,
             )
-            val_step_nersa(model, val_data, loss_ner, loss_sa, writer, epoch, device)
+            val_step_nersa(model,
+                           val_data,
+                           loss_ner,
+                           loss_sa,
+                           writer,
+                           epoch,
+                           device)
         elif modo == "NER":
             train_step_ner(
-                model, train_data, loss_ner, optimizer_ner, writer, epoch, device
+                model,
+                train_data,
+                loss_ner,
+                optimizer_ner,
+                writer,
+                epoch,
+                device
             )
-            val_step_ner(model, val_data, loss_ner, writer, epoch, device)
+            val_step_ner(model,
+                         val_data,
+                         loss_ner,
+                         writer,
+                         epoch,
+                         device)
         else:
             train_step_sa(
-                model, train_data, loss_sa, optimizer_sa, writer, epoch, device
+                model,
+                train_data,
+                loss_sa,
+                optimizer_sa,
+                writer,
+                epoch,
+                device
             )
-            val_step_sa(model, val_data, loss_sa, writer, epoch, device)
+            val_step_sa(model,
+                        val_data,
+                        loss_sa,
+                        writer,
+                        epoch,
+                        device)
 
     print("ENTRENAMIENTO COMPLETADO\n")
 
     if modo == "NERSA":
-        t_step_nersa(model, test_data, loss_ner, loss_sa, device)
+        t_step_nersa(model,
+                     test_data,
+                     loss_ner,
+                     loss_sa,
+                     device)
     elif modo == "NER":
-        t_step_ner(model, test_data, loss_ner, device)
+        t_step_ner(model,
+                   test_data,
+                   loss_ner,
+                   device)
     else:
-        t_step_sa(model, test_data, loss_sa, device)
+        t_step_sa(model,
+                  test_data,
+                  loss_sa,
+                  device)
 
     txt2save: str = f"glove_{emb_dim}d_{modo}_{num_epochs}_{batch_size}"
     save_model(model, txt2save)

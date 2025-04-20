@@ -9,7 +9,10 @@ from typing import Final
 import re
 
 # own modules
-from src.data import load_data, load_embeddings, map_sa_tags, map_ner_tags
+from src.data import (load_data,
+                      load_embeddings,
+                      map_sa_tags,
+                      map_ner_tags)
 from src.utils import (
     set_seed,
     load_model,
@@ -26,16 +29,22 @@ TEMP_FILE: Final[str] = "unique_test.json"
 EMBEDINGS_PATH: Final[str] = "embeddings"
 
 # set device
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+device = torch.device("cuda") if torch.cuda.is_available() \
+                                else torch.device("cpu")
 set_seed(42)
 
 
 def limpiar_y_extraer_mensaje(texto: str) -> str:
     # 1. Eliminar todo el contenido entre <think> y </think>
-    texto_sin_think = re.sub(r"<think>.*?</think>", "", texto, flags=re.DOTALL)
+    texto_sin_think = re.sub(r"<think>.*?</think>",
+                             "",
+                             texto,
+                             flags=re.DOTALL)
 
     # 2. Buscar todos los mensajes entre --- y ---
-    matches = re.findall(r"---\s*(.*?)\s*---", texto_sin_think, flags=re.DOTALL)
+    matches = re.findall(r"---\s*(.*?)\s*---",
+                         texto_sin_think,
+                         flags=re.DOTALL)
 
     # 3. Devolver el último mensaje si existe
     return matches[-1] if matches else ""
@@ -45,7 +54,9 @@ def main() -> None:
     """
     This function is the main program.
     """
-    name = "glove_50d_NERSA_20_128"  # Nombre del modelo que se va a ejecutar, tiene que ser de este formato, no otro
+    # Nombre del modelo que se va a ejecutar,
+    # tiene que ser de este formato, no otro
+    name = "glove_50d_NERSA_20_128"  
 
     prueba_externa = True
 
@@ -139,7 +150,7 @@ def main() -> None:
         if alert:
             texto_generado = generate_response(alert_prompt)
             # texto_generado = ""
-            print("\PROMPT: ------------------------ \n", alert_prompt)
+            print("PROMPT: ------------------------ \n", alert_prompt)
 
             alert = limpiar_y_extraer_mensaje(texto_generado)
             print(

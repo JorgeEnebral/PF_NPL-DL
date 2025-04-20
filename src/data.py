@@ -42,7 +42,8 @@ class AlertsDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[List[str], List[int], int]:
         """
-        Returns the embedded tensor and target for the text at the specified index.
+        Returns the embedded tensor and target
+        for the text at the specified index.
         """
         return self.texts[idx], self.ner_targets[idx], self.sa_targets[idx]
 
@@ -64,7 +65,9 @@ def load_data(
 
     if unique_test:
         unique_test_df = pd.read_json(
-            os.path.join(save_path, f"unique_test.json"), orient="records", lines=True
+            os.path.join(save_path, f"unique_test.json"),
+            orient="records",
+            lines=True
         )
         unique_test_dataset = AlertsDataset(unique_test_df)
         collate_with_w2v = partial(collate_fn, w2v_model=w2v_model)
@@ -79,13 +82,19 @@ def load_data(
         return unique_test_loader, None, None
 
     train_df = pd.read_json(
-        os.path.join(save_path, f"train.json"), orient="records", lines=True
+        os.path.join(save_path, f"train.json"),
+        orient="records",
+        lines=True
     )
     val_df = pd.read_json(
-        os.path.join(save_path, f"validation.json"), orient="records", lines=True
+        os.path.join(save_path, f"validation.json"),
+        orient="records",
+        lines=True
     )
     test_df = pd.read_json(
-        os.path.join(save_path, f"test.json"), orient="records", lines=True
+        os.path.join(save_path, f"test.json"),
+        orient="records",
+        lines=True
     )
 
     # Create datasets
@@ -144,13 +153,20 @@ def download_data(path) -> None:
             for sent in data_tokens
         ]
 
-        df = pd.DataFrame({"tokens": data_tokens, "ner": data_ner_tags, "sa": data_sa})
-        df.to_json(os.path.join(path, f"{part}.json"), orient="records", lines=True)
+        df = pd.DataFrame(
+            {"tokens": data_tokens,
+             "ner": data_ner_tags,
+             "sa": data_sa}
+            )
+        df.to_json(os.path.join(path, f"{part}.json"),
+                   orient="records",
+                   lines=True)
 
         return None
 
     sentiment_analyzer = pipeline(
-        "sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment"
+        "sentiment-analysis",
+        model="cardiffnlp/twitter-roberta-base-sentiment"
     )
     dataset = load_dataset("conll2003", trust_remote_code=True)
 
@@ -163,10 +179,16 @@ def download_data(path) -> None:
 
 def load_embeddings(path, emb_dim):
     glove_zip_url = "https://nlp.stanford.edu/data/glove.twitter.27B.zip"
+
     glove_zip_path = os.path.join(path, "glove.twitter.27B.zip")
-    glove_txt_file = os.path.join(path, f"glove.twitter.27B.{str(emb_dim)}d.txt")
+
+    glove_txt_file = os.path.join(
+        path,
+        f"glove.twitter.27B.{str(emb_dim)}d.txt"
+                                )
     word2vec_output_file = os.path.join(
-        path, f"glove.twitter.27B.{str(emb_dim)}d.word2vec.txt"
+        path,
+        f"glove.twitter.27B.{str(emb_dim)}d.word2vec.txt"
     )
 
     # Crear directorio si no existe
@@ -195,7 +217,10 @@ def load_embeddings(path, emb_dim):
 
     # Cargar el modelo
     print("CARGANDO MODELO DE WORD2VEC...")
-    w2v_model = KeyedVectors.load_word2vec_format(word2vec_output_file, binary=False)
+    w2v_model = KeyedVectors.load_word2vec_format(
+        word2vec_output_file,
+        binary=False
+        )
 
     print("MODELO CARGADO CON ÉXITO.")
     return w2v_model
@@ -232,16 +257,18 @@ def word2idx(
     """
     Converts a tweet to a list of word indices based on an embedding model.
 
-    This function iterates through each word in the tweet and retrieves its corresponding index
-    from the embedding model's vocabulary. If a word is not present in the model's vocabulary,
-    it is skipped.
+    This function iterates through each word in the tweet and
+    retrieves its corresponding index from the embedding model's vocabulary.
+    If a word is not present in the model's vocabulary, it is skipped.
 
     Args:
-        embedding_model (Any): The embedding model with a 'key_to_index' attribute, which maps words to their indices.
+        embedding_model (Any): The embedding model with a 'key_to_index'
+            attribute, which maps words to their indices.
         tweet (List[str]): A list of words representing the tweet.
 
     Returns:
-        torch.Tensor: A tensor of word indices corresponding to the words in the tweet.
+        torch.Tensor: A tensor of word indices corresponding
+            to the words in the tweet.
     """
     # TODO: Complete the function according to the requirements
     indexes = []
@@ -262,8 +289,9 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
     Prepares and returns a batch for training/testing in a torch model.
 
     Args:
-        batch (List[Tuple[List[str], List[int], int]]): A list of tuples, where each tuple contains a
-                                             list of words (representing a text) and an integer label.
+        batch (List[Tuple[List[str], List[int], int]]):
+            A list of tuples, where each tuple contains a
+            list of words (representing a text) and an integer label.
         word2idx (Callable): Function that converts words to indices.
         embedding_model: Word embedding model (e.g., Word2Vec, FastText, etc.).
 
@@ -281,31 +309,29 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
         indexes, lab_ner = word2idx(w2v_model, text, label_ner)
         if len(indexes) > 0:
             indexes_txt.append(indexes)
-            labels_ner.append(lab_ner)  # Para el vector de padding en la posición 0
+            labels_ner.append(lab_ner)  # Para el vector de padding en la pos 0
             labels_sa.append(label_sa)
 
     # Ordenar por longitud descendente
-    lengths = torch.tensor([len(seq) for seq in indexes_txt], dtype=torch.long)
+    lengths = torch.tensor(
+            [len(seq) for seq in indexes_txt],
+            dtype=torch.long
+            )
     sorted_data = sorted(
         zip(indexes_txt, labels_ner, labels_sa, lengths),
         key=lambda x: x[3],
         reverse=True,
     )
     texts_indexes, labels_ner, labels_sa, lengths = zip(*sorted_data)
-    texts_padded = pad_sequence(texts_indexes, batch_first=True, padding_value=0)
-    labels_ner_padded = pad_sequence(labels_ner, batch_first=True, padding_value=-1)
+    texts_padded = pad_sequence(texts_indexes,
+                                batch_first=True,
+                                padding_value=0
+                                )
+    labels_ner_padded = pad_sequence(labels_ner,
+                                     batch_first=True,
+                                     padding_value=-1
+                                     )
     labels_sa = torch.tensor(labels_sa, dtype=torch.int32)
     lengths = torch.tensor(lengths, dtype=torch.int32)
 
     return texts_padded, labels_ner_padded, labels_sa, lengths
-
-
-# if __name__ == "__main__":
-
-# python -m src.data para cargarlos
-
-# DATA_PATH = "data"
-# EMBEDINGS_PATH = "embeddings"
-
-# w2v_model = load_embeddings(EMBEDINGS_PATH)
-#  dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)

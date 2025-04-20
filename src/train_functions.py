@@ -10,7 +10,13 @@ from src.utils import Accuracy
 
 
 @torch.enable_grad()
-def train_step_sa(model, train_data, loss_fn, optimizer, writer, epoch, device):
+def train_step_sa(model,
+                  train_data,
+                  loss_fn,
+                  optimizer,
+                  writer,
+                  epoch,
+                  device):
     model.train()
     losses = []
     acc = Accuracy("SA")
@@ -36,7 +42,13 @@ def train_step_sa(model, train_data, loss_fn, optimizer, writer, epoch, device):
 
 
 @torch.enable_grad()
-def train_step_ner(model, train_data, loss_fn_ner, optimizer, writer, epoch, device):
+def train_step_ner(model,
+                   train_data,
+                   loss_fn_ner,
+                   optimizer,
+                   writer,
+                   epoch,
+                   device):
     model.train()
     losses = []
     acc = Accuracy("NER")
@@ -46,7 +58,8 @@ def train_step_ner(model, train_data, loss_fn_ner, optimizer, writer, epoch, dev
         outputs, _ = model(inputs, lengths)
         _, _, D = outputs.size()
 
-        loss = loss_fn_ner(outputs.view(-1, D).float(), ner_targets.view(-1).long())
+        loss = loss_fn_ner(outputs.view(-1, D).float(),
+                           ner_targets.view(-1).long())
 
         optimizer.zero_grad()
         loss.backward()
@@ -65,7 +78,15 @@ def train_step_ner(model, train_data, loss_fn_ner, optimizer, writer, epoch, dev
 
 @torch.enable_grad()
 def train_step_nersa(
-    model, train_data, loss_fn_ner, loss_fn_sa, opt_ner, opt_sa, writer, epoch, device
+    model,
+    train_data,
+    loss_fn_ner,
+    loss_fn_sa,
+    opt_ner,
+    opt_sa,
+    writer,
+    epoch,
+    device
 ):
     model.train()
     losses_ner, losses_sa = [], []
@@ -81,10 +102,12 @@ def train_step_nersa(
         out_ner, out_sa = model(inputs, lengths)
 
         _, _, D = out_ner.size()
-        loss_ner = loss_fn_ner(out_ner.view(-1, D).float(), ner_targets.view(-1).long())
+        loss_ner = loss_fn_ner(out_ner.view(-1, D).float(),
+                               ner_targets.view(-1).long())
         loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
 
-        total_loss = loss_ponderation[0] * loss_ner + loss_ponderation[1] * loss_sa
+        total_loss = loss_ponderation[0] * loss_ner \
+            + loss_ponderation[1] * loss_sa
 
         opt_ner.zero_grad()
         opt_sa.zero_grad()
@@ -144,7 +167,8 @@ def val_step_ner(model, val_data, loss_fn_ner, writer, epoch, device):
         outputs, _ = model(inputs, lengths)
         _, _, D = outputs.size()
 
-        loss = loss_fn_ner(outputs.view(-1, D).float(), ner_targets.view(-1).long())
+        loss = loss_fn_ner(outputs.view(-1, D).float(),
+                           ner_targets.view(-1).long())
 
         acc.update(outputs, ner_targets)
         losses.append(loss.item())
@@ -158,7 +182,13 @@ def val_step_ner(model, val_data, loss_fn_ner, writer, epoch, device):
 
 
 @torch.no_grad()
-def val_step_nersa(model, val_data, loss_fn_ner, loss_fn_sa, writer, epoch, device):
+def val_step_nersa(model,
+                   val_data,
+                   loss_fn_ner,
+                   loss_fn_sa,
+                   writer,
+                   epoch,
+                   device):
     model.eval()
     losses_ner, losses_sa = [], []
     acc_ner, acc_sa = Accuracy("NER"), Accuracy("SA")
@@ -173,7 +203,8 @@ def val_step_nersa(model, val_data, loss_fn_ner, loss_fn_sa, writer, epoch, devi
         out_ner, out_sa = model(inputs, lengths)
         _, _, D = out_ner.size()
 
-        loss_ner = loss_fn_ner(out_ner.view(-1, D).float(), ner_targets.view(-1).long())
+        loss_ner = loss_fn_ner(out_ner.view(-1, D).float(),
+                               ner_targets.view(-1).long())
         loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
 
         acc_ner.update(out_ner, ner_targets)
@@ -223,7 +254,8 @@ def t_step_ner(model, test_data, loss_fn_ner, device):
         outputs, _ = model(inputs, lengths)
         _, _, D = outputs.size()
 
-        loss = loss_fn_ner(outputs.view(-1, D).float(), ner_targets.view(-1).long())
+        loss = loss_fn_ner(outputs.view(-1, D).float(),
+                           ner_targets.view(-1).long())
 
         acc.update(outputs, ner_targets)
         losses.append(loss.item())
@@ -246,7 +278,8 @@ def t_step_nersa(model, test_data, loss_fn_ner, loss_fn_sa, device):
         out_ner, out_sa = model(inputs, lengths)
         _, _, D = out_ner.size()
 
-        loss_ner = loss_fn_ner(out_ner.view(-1, D).float(), ner_targets.view(-1).long())
+        loss_ner = loss_fn_ner(out_ner.view(-1, D).float(),
+                               ner_targets.view(-1).long())
         loss_sa = loss_fn_sa(out_sa.float(), sa_targets.long())
 
         acc_ner.update(out_ner, ner_targets)

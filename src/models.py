@@ -64,7 +64,8 @@ class NerSaModel(torch.nn.Module):
         This method is the forward pass of the model.
 
         Args:
-            inputs: inputs tensor. Dimensions: [batch, number of past days, 24].
+            inputs: inputs tensor. Dimensions:
+                [batch, number of past days, 24].
 
         Returns:
             output tensor. Dimensions: [batch, 24].
@@ -72,14 +73,19 @@ class NerSaModel(torch.nn.Module):
         # convertimos los inputs a embeddings
         embedded = self.embedding(inputs)
 
-        # para que detecte la longitud de las frases sin hacer calculos innecesarios con los paddings (que son 0)
-        # lengths.cpu indica la longitud real de la oración, sin tener en cuenta el padding
+        # para que detecte la longitud de las frases
+        # sin hacer calculos innecesarios con los paddings (que son 0)
+        # lengths.cpu indica la longitud real de la oración,
+        # sin tener en cuenta el padding
         packed = nn.utils.rnn.pack_padded_sequence(
             embedded, lengths.cpu(), batch_first=True, enforce_sorted=True
         )
 
         packed_output, (hidden, _) = self.lstm(packed)
-        outputs, _ = nn.utils.rnn.pad_packed_sequence(packed_output, batch_first=True)
+        outputs, _ = nn.utils.rnn.pad_packed_sequence(
+                packed_output,
+                batch_first=True
+                )
         hiddens_concat = torch.cat((hidden[-1], hidden[-2]), dim=-1)
 
         if self.mode == "NER":
