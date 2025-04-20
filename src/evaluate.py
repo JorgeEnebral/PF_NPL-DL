@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.jit import RecursiveScriptModule
 import torch.nn.functional as F
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 # other libraries
 from typing import Final
@@ -68,7 +69,7 @@ def main() -> None:
     alert = False
     # phrase = "John suffered from an awful fall to the ground" # input_prompt
 
-    phrase_list = ["it","all","culminated","in","the","fact","that","i","now","have","lots","of","great",",","great","friends","in","ireland","."]
+    phrase_list = ["singapore","stands","to","benefit","more","than","most","from","continued","global","trade","liberalisation","as","trade","is","the","engine","of","its","growth",",","accounting","for","nearly","three","times","its","gross","domestic","product","."]
     phrase = " ".join(phrase_list)
     
     match = re.search(r"glove_([0-9]+)d_([^_]+)_", name)
@@ -119,10 +120,10 @@ def main() -> None:
                 
                 if pred_sa == 0:
                     alert = True
-                    alert_prompt = "\nGenerate an alert for: "
+                    alert_prompt = "Generate an alert for: "
                 elif pred_sa == 2:
                     alert = True
-                    alert_prompt = "\nGenerate a congratulatory message for: "
+                    alert_prompt = "Generate a congratulatory message for: "
                 print("Etiquetas NER:")
                 for tok, tag in zip(phrase.split(), preds_ner):
                     print(f"{tok:10} → {map_ner_tags(tag)}")
@@ -130,7 +131,24 @@ def main() -> None:
                         alert_prompt = alert_creator(alert_prompt, tag, tok)
 
         if alert:
-            print(alert_prompt)
+            name_generator = "google/flan-t5-small"
+            model_generator = AutoModelForSeq2SeqLM.from_pretrained(name_generator)
+            tokenizer_generator = AutoTokenizer.from_pretrained(name_generator)
+            
+            inputs = tokenizer_generator.encode(alert_prompt, return_tensors="pt")
+            outputs = model_generator.generate(
+                                            inputs,
+                                            max_length=100,
+                                            num_return_sequences=1,
+                                            no_repeat_ngram_size=2,
+                                            temperature=0.7,
+                                            do_sample=True  # Habilita el muestreo aleatorio
+                                        )
+            texto_generado = tokenizer_generator.decode(outputs[0], skip_special_tokens=True)
+            
+            print("\nPrompt: ", alert_prompt)
+            print("Respuesta del modelo preentrenado: ", texto_generado)
+            
         # 4. Borrar archivo temporal
         delete_temp_json()
                 
