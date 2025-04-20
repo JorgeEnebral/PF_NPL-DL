@@ -27,7 +27,7 @@ class Accuracy:
         Initializes correct and total to zero.
         """
         self.mode = mode
-        
+
         self.correct = 0
         self.total = 0
 
@@ -43,16 +43,16 @@ class Accuracy:
         """
         if self.mode == "SA":
             predictions = logits.argmax(dim=1).type_as(labels)
-            self.correct += int((predictions == labels).sum().item()) # bs
+            self.correct += int((predictions == labels).sum().item())  # bs
             self.total += labels.shape[0]
 
         else:  # NER o NERSA
             predictions = logits.argmax(dim=2).type_as(labels)
-            
+
             mask = labels != -1
             self.correct += int((predictions[mask] == labels[mask]).sum().item())
             self.total += int(mask.sum().item())
-            
+
         return None
 
     def compute(self) -> float:
@@ -145,14 +145,11 @@ def create_temp_json(phrase: str, DATA_PATH, TEMP_FILE) -> None:
     dummy_ner = [1] * len(phrase)  # "O" -> 1 según tu mapeo
     dummy_sa = 1  # Neutral
 
-    sample = {
-        "tokens": phrase,
-        "ner": dummy_ner,
-        "sa": dummy_sa
-    }
+    sample = {"tokens": phrase, "ner": dummy_ner, "sa": dummy_sa}
     with open(DATA_PATH + "/" + TEMP_FILE, "w") as f:
         json.dump(sample, f)
         f.write("\n")  # línea para JSONL
+
 
 def delete_temp_json(DATA_PATH, TEMP_FILE) -> None:
     """Elimina el archivo temporal después de evaluar."""
@@ -160,16 +157,16 @@ def delete_temp_json(DATA_PATH, TEMP_FILE) -> None:
     if os.path.exists(temp_path):
         os.remove(temp_path)
 
+
 def alert_creator(alert_promt, tag, tok):
-    if tag in [1,2]:
+    if tag in [1, 2]:
         alert_promt += f"{tok} as a person entity, "
-    elif tag in [3,4]:
+    elif tag in [3, 4]:
         alert_promt += f"{tok} as a organization entity, "
-    elif tag in [5,6]:
+    elif tag in [5, 6]:
         alert_promt += f"{tok} as a ubication entity, "
-    elif tag in [7,8]:
+    elif tag in [7, 8]:
         alert_promt += f"{tok} as a miscellaneous entity, "
     else:
         alert_promt += ""
     return alert_promt
-

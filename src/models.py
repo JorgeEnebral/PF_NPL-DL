@@ -4,14 +4,17 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 
-            
+
 class NerSaModel(torch.nn.Module):
-    def __init__(self, embedding_weights: torch.Tensor, 
-                 hidden_size: int, 
-                 hidden_layers: int, 
-                 l_pond: torch.Tensor,
-                 dropout: float = 0.0, 
-                 mode: str = "NERSA") -> None:
+    def __init__(
+        self,
+        embedding_weights: torch.Tensor,
+        hidden_size: int,
+        hidden_layers: int,
+        l_pond: torch.Tensor,
+        dropout: float = 0.0,
+        mode: str = "NERSA",
+    ) -> None:
         """
         This method is the constructor of the class.
 
@@ -19,28 +22,44 @@ class NerSaModel(torch.nn.Module):
             mode: "NER", "SA" "NERSA"
         """
         super(NerSaModel, self).__init__()
-        
+
         self.mode = mode
-        self.output_dims = {"NER": 9,
-                            "SA": 3}
+        self.output_dims = {"NER": 9, "SA": 3}
 
         # PROBAR SI CUADRA
-        _, embedding_dim = embedding_weights.shape                                  
-        self.embedding = nn.Embedding.from_pretrained(embedding_weights, freeze=True, padding_idx=0)
+        _, embedding_dim = embedding_weights.shape
+        self.embedding = nn.Embedding.from_pretrained(
+            embedding_weights, freeze=True, padding_idx=0
+        )
 
-        self.lstm = nn.LSTM(embedding_dim, hidden_size=hidden_size, num_layers=hidden_layers, bidirectional=True, batch_first=True)
+        self.lstm = nn.LSTM(
+            embedding_dim,
+            hidden_size=hidden_size,
+            num_layers=hidden_layers,
+            bidirectional=True,
+            batch_first=True,
+        )
 
         self.dropout = nn.Dropout(dropout)
-        
-        self.fc_ner = nn.Linear(2*hidden_size, self.output_dims["NER"]) if mode == "NERSA" else nn.Identity()
-        self.fc_sa = nn.Linear(2*hidden_size, self.output_dims["SA"]) if mode == "NERSA" else nn.Identity()
+
+        self.fc_ner = (
+            nn.Linear(2 * hidden_size, self.output_dims["NER"])
+            if mode == "NERSA"
+            else nn.Identity()
+        )
+        self.fc_sa = (
+            nn.Linear(2 * hidden_size, self.output_dims["SA"])
+            if mode == "NERSA"
+            else nn.Identity()
+        )
         outdim = self.output_dims[self.mode] if self.mode != "NERSA" else 1
-        self.fc = nn.Linear(2*hidden_size, outdim)
-        
+        self.fc = nn.Linear(2 * hidden_size, outdim)
+
         self.register_buffer("loss_ponderation", l_pond)
 
-
-    def forward(self, inputs: torch.Tensor, lengths: torch.Tensor) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    def forward(
+        self, inputs: torch.Tensor, lengths: torch.Tensor
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         This method is the forward pass of the model.
 
@@ -55,7 +74,9 @@ class NerSaModel(torch.nn.Module):
 
         # para que detecte la longitud de las frases sin hacer calculos innecesarios con los paddings (que son 0)
         # lengths.cpu indica la longitud real de la oración, sin tener en cuenta el padding
-        packed = nn.utils.rnn.pack_padded_sequence(embedded, lengths.cpu(), batch_first=True, enforce_sorted=True)
+        packed = nn.utils.rnn.pack_padded_sequence(
+            embedded, lengths.cpu(), batch_first=True, enforce_sorted=True
+        )
 
         packed_output, (hidden, _) = self.lstm(packed)
         outputs, _ = nn.utils.rnn.pad_packed_sequence(packed_output, batch_first=True)

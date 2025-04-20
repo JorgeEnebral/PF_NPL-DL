@@ -19,6 +19,7 @@ from functools import partial
 
 # own modules
 from src.utils import set_seed
+
 set_seed(42)
 
 
@@ -26,6 +27,7 @@ class AlertsDataset(Dataset):
     """
     A PyTorch Dataset for the AlertsDataset dataset.
     """
+
     def __init__(self, df):
         """
         Initializes the TweepFakeDataset with the given file path.
@@ -46,89 +48,126 @@ class AlertsDataset(Dataset):
 
 
 def load_data(
-        w2v_model,
-        save_path: str,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        drop_last: bool = False,
-        num_workers: int = 0,
-        unique_test: bool = False
+    w2v_model,
+    save_path: str,
+    batch_size: int = 128,
+    shuffle: bool = True,
+    drop_last: bool = False,
+    num_workers: int = 0,
+    unique_test: bool = False,
 ) -> tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-    """
-    
-    """
+    """ """
     # Checking if provided directory exist and if not create it
     if not os.path.exists(save_path):
         os.makedirs(save_path)
         download_data(save_path)
-        
+
     if unique_test:
-        unique_test_df = pd.read_json(os.path.join(save_path, f"unique_test.json"), orient="records", lines=True)
+        unique_test_df = pd.read_json(
+            os.path.join(save_path, f"unique_test.json"), orient="records", lines=True
+        )
         unique_test_dataset = AlertsDataset(unique_test_df)
         collate_with_w2v = partial(collate_fn, w2v_model=w2v_model)
-        unique_test_loader = DataLoader(unique_test_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
+        unique_test_loader = DataLoader(
+            unique_test_dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            collate_fn=collate_with_w2v,
+        )
         return unique_test_loader, None, None
-        
-    train_df = pd.read_json(os.path.join(save_path, f"train.json"), orient="records", lines=True)
-    val_df = pd.read_json(os.path.join(save_path, f"validation.json"), orient="records", lines=True)
-    test_df = pd.read_json(os.path.join(save_path, f"test.json"), orient="records", lines=True)
+
+    train_df = pd.read_json(
+        os.path.join(save_path, f"train.json"), orient="records", lines=True
+    )
+    val_df = pd.read_json(
+        os.path.join(save_path, f"validation.json"), orient="records", lines=True
+    )
+    test_df = pd.read_json(
+        os.path.join(save_path, f"test.json"), orient="records", lines=True
+    )
 
     # Create datasets
     train_dataset = AlertsDataset(train_df)
     val_dataset = AlertsDataset(val_df)
     test_dataset = AlertsDataset(test_df)
-    
+
     # Create dataloaders
     collate_with_w2v = partial(collate_fn, w2v_model=w2v_model)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=drop_last, num_workers=num_workers, collate_fn=collate_with_w2v)
-    
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=drop_last,
+        num_workers=num_workers,
+        collate_fn=collate_with_w2v,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=drop_last,
+        num_workers=num_workers,
+        collate_fn=collate_with_w2v,
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=drop_last,
+        num_workers=num_workers,
+        collate_fn=collate_with_w2v,
+    )
+
     return train_loader, val_loader, test_loader
 
 
 def download_data(path) -> None:
     """"""
+
     def process_dataset(sentiment_analyzer, dataset, part):
-        """"""        
+        """"""
         data_tokens, data_ner_tags = [], []
         for sent in dataset[part]:
             clean_tokens = []
             clean_tags = []
             for token, tag in zip(sent["tokens"], sent["ner_tags"]):
-                clean_token = token.replace('"', '').replace("'", "").lower()
+                clean_token = token.replace('"', "").replace("'", "").lower()
                 if clean_token:  # solo añadimos si no es vacío
                     clean_tokens.append(clean_token)
                     clean_tags.append(tag)
             data_tokens.append(clean_tokens)
             data_ner_tags.append(clean_tags)
-        data_sa = [int(sentiment_analyzer(" ".join(sent))[0]["label"][-1]) for sent in data_tokens]
-        
-        df = pd.DataFrame({
-            "tokens": data_tokens,
-            "ner": data_ner_tags,
-            "sa": data_sa
-        })
+        data_sa = [
+            int(sentiment_analyzer(" ".join(sent))[0]["label"][-1])
+            for sent in data_tokens
+        ]
+
+        df = pd.DataFrame({"tokens": data_tokens, "ner": data_ner_tags, "sa": data_sa})
         df.to_json(os.path.join(path, f"{part}.json"), orient="records", lines=True)
-        
+
         return None
-        
-        
-    sentiment_analyzer = pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment")
+
+    sentiment_analyzer = pipeline(
+        "sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment"
+    )
     dataset = load_dataset("conll2003", trust_remote_code=True)
-    
+
     process_dataset(sentiment_analyzer, dataset, "train")
     process_dataset(sentiment_analyzer, dataset, "validation")
     process_dataset(sentiment_analyzer, dataset, "test")
-    
+
     return None
-    
+
 
 def load_embeddings(path, emb_dim):
-    glove_zip_url = 'https://nlp.stanford.edu/data/glove.twitter.27B.zip'
-    glove_zip_path = os.path.join(path, 'glove.twitter.27B.zip')
-    glove_txt_file = os.path.join(path, f'glove.twitter.27B.{str(emb_dim)}d.txt')
-    word2vec_output_file = os.path.join(path, f'glove.twitter.27B.{str(emb_dim)}d.word2vec.txt')
+    glove_zip_url = "https://nlp.stanford.edu/data/glove.twitter.27B.zip"
+    glove_zip_path = os.path.join(path, "glove.twitter.27B.zip")
+    glove_txt_file = os.path.join(path, f"glove.twitter.27B.{str(emb_dim)}d.txt")
+    word2vec_output_file = os.path.join(
+        path, f"glove.twitter.27B.{str(emb_dim)}d.word2vec.txt"
+    )
 
     # Crear directorio si no existe
     if not os.path.exists(path):
@@ -138,7 +177,7 @@ def load_embeddings(path, emb_dim):
     if not os.path.exists(glove_zip_path):
         print("DESCARGANDO EMBEDDINGS DE GLOVE...")
         response = requests.get(glove_zip_url, stream=True)
-        with open(glove_zip_path, 'wb') as f:
+        with open(glove_zip_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
@@ -146,7 +185,7 @@ def load_embeddings(path, emb_dim):
     # Descomprimir el archivo si no existe el archivo específico
     if not os.path.exists(glove_txt_file):
         print("DESCOMPRIMIENDO ARCHIVO...")
-        with zipfile.ZipFile(glove_zip_path, 'r') as zip_ref:
+        with zipfile.ZipFile(glove_zip_path, "r") as zip_ref:
             zip_ref.extractall(path)
 
     # Convertir a formato Word2Vec si no existe
@@ -160,11 +199,12 @@ def load_embeddings(path, emb_dim):
 
     print("MODELO CARGADO CON ÉXITO.")
     return w2v_model
-   
+
+
 def map_ner_tags(ner_tag):
     # Mapa de etiquetas NER de CoNLL-2003 a las etiquetas del esquema propuesto
     ner_map = {
-        0: "O",   # No es una entidad
+        0: "O",  # No es una entidad
         1: "B-PER",  # Inicio de Persona
         2: "I-PER",  # Continuación de Persona
         3: "B-ORG",  # Inicio de Organización
@@ -172,22 +212,23 @@ def map_ner_tags(ner_tag):
         5: "B-LOC",  # Inicio de Ubicación
         6: "I-LOC",  # Continuación de Ubicación
         7: "B-MISC",  # Inicio de Entidad Miscelánea
-        8: "I-MISC"   # Continuación de Entidad Miscelánea
+        8: "I-MISC",  # Continuación de Entidad Miscelánea
     }
     return ner_map[ner_tag]
 
 
 def map_sa_tags(sa_tag):
-
     sa_map = {
-        0: "Negative", 
+        0: "Negative",
         1: "Neutral",
-        2: "Positive", 
+        2: "Positive",
     }
     return sa_map[sa_tag]
 
 
-def word2idx(embedding_model, tweet: List[str], ner: List[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+def word2idx(
+    embedding_model, tweet: List[str], ner: List[int] = None
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Converts a tweet to a list of word indices based on an embedding model.
 
@@ -207,9 +248,13 @@ def word2idx(embedding_model, tweet: List[str], ner: List[int] = None) -> Tuple[
     ner_idx = []
     for idx, word in enumerate(tweet):
         if word in embedding_model.key_to_index:
-            indexes.append(embedding_model.key_to_index[word]+1)  # Para el vector de padding en la posición 0
+            indexes.append(
+                embedding_model.key_to_index[word] + 1
+            )  # Para el vector de padding en la posición 0
             ner_idx.append(ner[idx])
-    return torch.tensor(indexes, dtype=torch.long), torch.tensor(ner_idx, dtype=torch.long)
+    return torch.tensor(indexes, dtype=torch.long), torch.tensor(
+        ner_idx, dtype=torch.long
+    )
 
 
 def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
@@ -236,27 +281,31 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
         indexes, lab_ner = word2idx(w2v_model, text, label_ner)
         if len(indexes) > 0:
             indexes_txt.append(indexes)
-            labels_ner.append(lab_ner) # Para el vector de padding en la posición 0
+            labels_ner.append(lab_ner)  # Para el vector de padding en la posición 0
             labels_sa.append(label_sa)
-    
+
     # Ordenar por longitud descendente
     lengths = torch.tensor([len(seq) for seq in indexes_txt], dtype=torch.long)
-    sorted_data = sorted(zip(indexes_txt, labels_ner, labels_sa, lengths), key=lambda x: x[3], reverse=True)
+    sorted_data = sorted(
+        zip(indexes_txt, labels_ner, labels_sa, lengths),
+        key=lambda x: x[3],
+        reverse=True,
+    )
     texts_indexes, labels_ner, labels_sa, lengths = zip(*sorted_data)
     texts_padded = pad_sequence(texts_indexes, batch_first=True, padding_value=0)
     labels_ner_padded = pad_sequence(labels_ner, batch_first=True, padding_value=-1)
     labels_sa = torch.tensor(labels_sa, dtype=torch.int32)
     lengths = torch.tensor(lengths, dtype=torch.int32)
-    
-    return texts_padded, labels_ner_padded, labels_sa, lengths
-    
-    
-# if __name__ == "__main__":
-    
-    # python -m src.data para cargarlos
-    
-    # DATA_PATH = "data"
-    # EMBEDINGS_PATH = "embeddings"
 
-    # w2v_model = load_embeddings(EMBEDINGS_PATH) 
-    #  dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)
+    return texts_padded, labels_ner_padded, labels_sa, lengths
+
+
+# if __name__ == "__main__":
+
+# python -m src.data para cargarlos
+
+# DATA_PATH = "data"
+# EMBEDINGS_PATH = "embeddings"
+
+# w2v_model = load_embeddings(EMBEDINGS_PATH)
+#  dat_t, dat_v, dat_te = load_data(w2v_model=w2v_model, save_path=DATA_PATH)

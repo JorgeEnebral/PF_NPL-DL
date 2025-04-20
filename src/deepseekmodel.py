@@ -8,15 +8,11 @@ api_key = os.getenv("key")
 
 client = Groq(api_key=api_key)
 
+
 def generate_response(message: str) -> str:
     completion = client.chat.completions.create(
         model="deepseek-r1-distill-llama-70b",
-        messages=[
-            {
-                'role': 'user',
-                'content': message
-            }
-        ],
+        messages=[{"role": "user", "content": message}],
         temperature=0.6,
         max_completion_tokens=1000,
         top_p=0.95,
