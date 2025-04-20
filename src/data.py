@@ -3,7 +3,7 @@ from typing import Tuple, List, Optional
 # deep learning libraries
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from datasets import load_dataset, DatasetDict
+from datasets import load_dataset
 from transformers import pipeline
 from torch.nn.utils.rnn import pad_sequence
 

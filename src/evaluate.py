@@ -56,7 +56,7 @@ def main() -> None:
     """
     # Nombre del modelo que se va a ejecutar,
     # tiene que ser de este formato, no otro
-    name = "glove_50d_NERSA_20_128"  
+    name = "glove_50d_NERSA_20_128"
 
     prueba_externa = True
 
