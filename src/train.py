@@ -28,53 +28,6 @@ TOKENIZERS_PARALLELISM = False
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 set_seed(42)
 
-import json
-import torch
-from collections import Counter
-
-def weights(train_path="data/train.json"):
-    ner_counter = Counter()
-    sa_counter = Counter()
-    
-    with open(train_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            data = json.loads(line)
-            
-            # contar NER
-            ner_counter.update(data['ner'])
-            
-            # contar SA
-            sa_counter.update([data['sa']])
-
-    # total clases
-    ner_classes = 9
-    sa_classes = 3
-    
-    # crear listas de frecuencias
-    ner_freq = torch.tensor([ner_counter.get(i, 0) for i in range(ner_classes)], dtype=torch.float)
-    sa_freq = torch.tensor([sa_counter.get(i, 0) for i in range(sa_classes)], dtype=torch.float)
-
-    # evitar división por cero
-    ner_freq[ner_freq == 0] = 1
-    sa_freq[sa_freq == 0] = 1
-
-    # calcular pesos inversamente proporcionales a la frecuencia
-    weights_ner = 1.0 / ner_freq
-    weights_sa = 1.0 / sa_freq
-
-    # normalizar (suma 1)
-    weights_ner = weights_ner / weights_ner.sum()
-    weights_sa = weights_sa / weights_sa.sum()
-
-    weights_ner = torch.tensor([0.05, 
-                                0.2, 0.05, 
-                                0.2, 0.05, 
-                                0.2, 0.05,
-                                0.15, 0.05])
-    weights_sa = torch.tensor([0.275, 0.05, 0.675])
-    
-    return weights_ner, weights_sa
-
 
 def main() -> None:
     """
@@ -85,13 +38,13 @@ def main() -> None:
     hidden_size = 32
     hidden_layers = 1
     lr_sa = 0.001
-    lr_ner = 0.01
+    lr_ner = 0.0
     w_dc_sa = 0.0
     w_dc_ner = 0.0
     batch_size = 128
     dropout = 0.0
     modo = "NERSA" # ["NER", "SA", "NERSA"]
-    loss_ponderation = torch.tensor([0.35, 0.65]) # [NER, SA]
+    loss_ponderation = torch.tensor([0.3, 0.7]) # [NER, SA]
 
     # Dataloaders
     print("OBTENCION DE LOS DATALOADERS")
@@ -111,12 +64,18 @@ def main() -> None:
     
     # GENERACION DEL MODELO
     model = NerSaModel(embedding_weights, hidden_size, hidden_layers, l_pond=loss_ponderation, dropout=dropout, mode=modo).to(device)
-    model.lstm.flatten_parameters() 
+    model.lstm.flatten_parameters()  # Lo recomienda chat
     parameters_to_double(model)
     
     optimizer_sa = torch.optim.Adam(model.parameters(), lr=lr_sa, weight_decay=w_dc_sa)
     optimizer_ner = torch.optim.Adam(model.parameters(), lr=lr_ner, weight_decay=w_dc_ner)
-    weights_ner, weights_sa = weights()
+    
+    weights_ner = torch.tensor([0.01, 
+                                0.22, 0.07, 
+                                0.22, 0.07, 
+                                0.25, 0.03,
+                                0.1, 0.03])
+    weights_sa = torch.tensor([0.23, 0.1, 0.67])
     loss_ner = torch.nn.CrossEntropyLoss(ignore_index=-1, weight=weights_ner.to(device))
     loss_sa = torch.nn.CrossEntropyLoss(weight=weights_sa.to(device)) 
 

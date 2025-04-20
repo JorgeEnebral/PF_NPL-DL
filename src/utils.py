@@ -6,7 +6,7 @@ from torch.jit import RecursiveScriptModule
 # other libraries
 import os
 import random
-from typing import Optional, Tuple
+import json
 
 
 class Accuracy:
@@ -138,3 +138,38 @@ def set_seed(seed: int) -> None:
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
     return None
+
+
+def create_temp_json(phrase: str, DATA_PATH, TEMP_FILE) -> None:
+    """Crea un archivo JSON temporal con la frase proporcionada."""
+    dummy_ner = [1] * len(phrase)  # "O" -> 1 según tu mapeo
+    dummy_sa = 1  # Neutral
+
+    sample = {
+        "tokens": phrase,
+        "ner": dummy_ner,
+        "sa": dummy_sa
+    }
+    with open(DATA_PATH + "/" + TEMP_FILE, "w") as f:
+        json.dump(sample, f)
+        f.write("\n")  # línea para JSONL
+
+def delete_temp_json(DATA_PATH, TEMP_FILE) -> None:
+    """Elimina el archivo temporal después de evaluar."""
+    temp_path = os.path.join(DATA_PATH, TEMP_FILE)
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
+
+def alert_creator(alert_promt, tag, tok):
+    if tag in [1,2]:
+        alert_promt += f"{tok} as a person entity, "
+    elif tag in [3,4]:
+        alert_promt += f"{tok} as a organization entity, "
+    elif tag in [5,6]:
+        alert_promt += f"{tok} as a ubication entity, "
+    elif tag in [7,8]:
+        alert_promt += f"{tok} as a miscellaneous entity, "
+    else:
+        alert_promt += ""
+    return alert_promt
+

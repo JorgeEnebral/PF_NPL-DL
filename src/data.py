@@ -208,8 +208,7 @@ def word2idx(embedding_model, tweet: List[str], ner: List[int] = None) -> Tuple[
     for idx, word in enumerate(tweet):
         if word in embedding_model.key_to_index:
             indexes.append(embedding_model.key_to_index[word]+1)  # Para el vector de padding en la posición 0
-            if ner is not None:
-                ner_idx.append(ner[idx])
+            ner_idx.append(ner[idx])
     return torch.tensor(indexes, dtype=torch.long), torch.tensor(ner_idx, dtype=torch.long)
 
 
@@ -244,7 +243,6 @@ def collate_fn(batch: List[Tuple[List[str], List[int], int]], w2v_model):
     lengths = torch.tensor([len(seq) for seq in indexes_txt], dtype=torch.long)
     sorted_data = sorted(zip(indexes_txt, labels_ner, labels_sa, lengths), key=lambda x: x[3], reverse=True)
     texts_indexes, labels_ner, labels_sa, lengths = zip(*sorted_data)
-
     texts_padded = pad_sequence(texts_indexes, batch_first=True, padding_value=0)
     labels_ner_padded = pad_sequence(labels_ner, batch_first=True, padding_value=-1)
     labels_sa = torch.tensor(labels_sa, dtype=torch.int32)
