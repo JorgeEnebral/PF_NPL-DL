@@ -23,4 +23,5 @@ INSTRUCTIONS:
         - TAGS FOR EACH WORD
         - PROMPT
         - ALERT
+    - It is important to have the .env script that contains the key for the api that allows to use the DeepSeek R1 model.
 
